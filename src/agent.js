@@ -23,7 +23,7 @@ const CONFIG = {
   agentName: process.env.CLAW_AGENT_NAME || '大龙虾',
   reportInterval: 5000,  // 上报间隔
   gatewayPort: 18789,    // Gateway 端口
-  gatewayToken: 'REMOVED',  // Gateway Token
+  gatewayToken: process.env.CLAW_GATEWAY_TOKEN || '',  // Gateway Token (从环境变量读取)
   sessionsDir: path.join(os.homedir(), '.openclaw/agents/main/sessions')
 };
 
