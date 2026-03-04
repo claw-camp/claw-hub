@@ -2,6 +2,13 @@
 
 OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway 健康度。
 
+## 组件版本
+
+| 组件 | 名称 | 版本 | 说明 |
+|------|------|------|------|
+| Hub | 龙虾营地 Hub | 见 package.json | 服务端，部署在服务器 |
+| Agent | 龙虾营地 Agent | v1.0.0 | 本地客户端，运行在 OpenClaw 环境 |
+
 ## 架构
 
 ```
@@ -13,6 +20,7 @@ OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway
 │ • 采集会话列表  │                    │ • REST API      │
 │ • 采集系统资源  │                    │ • Agent 管理    │
 │ • 解析 Token    │                    │ • MySQL 存储    │
+│ • 采集插件列表  │                    │                 │
 └─────────────────┘                    └─────────────────┘
 ```
 
