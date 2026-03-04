@@ -482,6 +482,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 刷新状态
+  if (req.url.startsWith('/api/gateway/refresh')) {
+    const url = new URL(req.url, 'http://x');
+    const agentId = url.searchParams.get('agent') || 'main';
+    
+    const agent = agents.get(agentId);
+    if (!agent || !agent.ws) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Agent not found or offline' }));
+      return;
+    }
+    
+    // 发送状态刷新请求到 Agent
+    agent.ws.send(JSON.stringify({ type: 'status-request' }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Status refresh request sent' }));
+    return;
+  }
+
   res.writeHead(404); res.end('Not Found');
 });
 

@@ -693,8 +693,19 @@
     }
     
     function refreshGatewayStatus(agentId) {
-      showToast('✅ 状态已刷新', 'info');
-      console.log('[Gateway] 状态已刷新');
+      fetch(`/api/gateway/refresh?agent=${agentId}`)
+        .then(res => res.json())
+        .then(result => {
+          if (result.success) {
+            showToast('✅ 状态已刷新', 'success');
+            console.log('[Gateway] 状态刷新请求已发送');
+          } else {
+            showToast('❌ 刷新失败: ' + result.error, 'error');
+          }
+        })
+        .catch(e => {
+          showToast('❌ 刷新失败: ' + e.message, 'error');
+        });
     }
     
     // 定期检查所有在线 Agent 的更新
