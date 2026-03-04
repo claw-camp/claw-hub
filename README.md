@@ -1,13 +1,13 @@
 # 🦞 龙虾营地 (Claw Hub)
 
-OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway 健康度。
+OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway 健康度、插件版本。
 
 ## 组件版本
 
-| 组件 | 名称 | 版本 | 说明 |
-|------|------|------|------|
-| Hub | 龙虾营地 Hub | 见 package.json | 服务端，部署在服务器 |
-| Agent | 龙虾营地 Agent | v1.0.0 | 本地客户端，运行在 OpenClaw 环境 |
+| 组件 | 名称 | 当前版本 | 说明 |
+|------|------|---------|------|
+| **Hub** | 龙虾营地 Hub | v1.3.0 | 服务端，部署在服务器 |
+| **Agent** | 龙虾营地 Agent | v1.0.0 | 本地客户端，运行在 OpenClaw 环境 |
 
 ## 架构
 
@@ -29,8 +29,10 @@ OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway
 - **实时监控**：Agent 状态、Gateway 健康、会话数量
 - **Token 统计**：精确到每半小时的 token 消耗（从 .jsonl 解析）
 - **系统资源**：CPU、内存使用率
+- **插件版本**：显示每个 Agent 已加载的插件及版本
 - **数据持久化**：MySQL 存储，支持历史查询
 - **WebSocket 推送**：实时更新，无需轮询
+- **版本管理**：Hub/Agent 版本显示，支持一键更新
 
 ## 快速开始
 
@@ -38,32 +40,60 @@ OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourname/claw-hub.git
+git clone https://github.com/PhosAQy/claw-hub.git
 cd claw-hub
 
 # 安装依赖
 npm install
 
-# 配置数据库（修改 hub.js 中的 DB_CONFIG）
-# 创建 MySQL 数据库: CREATE DATABASE claw_camp;
+# 创建 .env 文件（配置环境变量）
+cat > .env << 'EOF'
+# 数据库配置
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=claude
+DB_PASSWORD=your_password
+DB_NAME=claw_camp
+
+# 更新令牌（用于一键更新）
+CLAW_UPDATE_TOKEN=your_secure_token
+EOF
+
+# 创建数据库
+mysql -u root -p -e "CREATE DATABASE claw_camp CHARACTER SET utf8mb4;"
 
 # 启动
-node src/hub.js
+node -r dotenv/config src/hub.js
 ```
 
-### 2. 配置 Agent（本地）
+### 2. 运行 Agent（本地）
 
 ```bash
-# 修改 agent.js 中的 CONFIG
-const CONFIG = {
-  hubUrl: 'ws://your-server:8889',
-  agentId: 'main',
-  agentName: '大龙虾',
-  // ...
-};
+# 克隆仓库（或在本地 OpenClaw workspace）
+git clone https://github.com/PhosAQy/claw-hub.git
+cd claw-hub
 
-# 启动
+# 安装依赖
+npm install
+
+# 配置环境变量（可选）
+export CLAW_HUB_URL=ws://your-server:8889
+export CLAW_AGENT_ID=main
+export CLAW_AGENT_NAME=大龙虾
+
+# 启动 Agent
 node src/agent.js
+```
+
+**启动成功输出：**
+```
+🦞 龙虾营地 Agent v1.0.0
+   Agent: 大龙虾 (main)
+   Hub: ws://server.aigc.sx.cn:8889
+
+[Agent] 连接 Hub: ws://server.aigc.sx.cn:8889
+[Agent] 已连接到 Hub
+[Agent] 注册成功: main
 ```
 
 ### 3. 配置 nginx（HTTPS）
