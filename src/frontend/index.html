@@ -262,6 +262,9 @@
     
     // 生成 Agent 详情
     function generateAgentDetails(agent) {
+      const gatewayStatus = agent.gateway?.status || 'unknown';
+      const gatewayRunning = gatewayStatus === 'running';
+      
       return `
         <div class="agent-details">
           <div class="details-grid">
@@ -284,6 +287,21 @@
                   `).join('')
                   : '<div style="color:#666;font-size:12px">暂无插件数据</div>'
                 }
+              </div>
+            </div>
+            
+            <div class="detail-section">
+              <div class="detail-title">🚪 Gateway 管理</div>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <span class="status-badge ${gatewayRunning ? 'online' : 'offline'}">
+                  <span class="status-dot ${gatewayRunning ? 'online' : 'offline'}"></span>
+                  ${gatewayRunning ? '运行中' : '已停止'}
+                </span>
+                ${gatewayRunning 
+                  ? `<button class="control-btn stop" onclick="event.stopPropagation(); stopGateway('${agent.id}')">⏹ 停止</button>`
+                  : `<button class="control-btn start" onclick="event.stopPropagation(); startGateway('${agent.id}')">▶ 启动</button>`
+                }
+                <button class="control-btn refresh" onclick="event.stopPropagation(); refreshGatewayStatus('${agent.id}')">🔄 刷新</button>
               </div>
             </div>
           </div>
@@ -499,6 +517,52 @@
       } catch (e) {
         alert('❌ 更新失败: ' + e.message);
       }
+    }
+    
+    // Gateway 管理
+    async function startGateway(agentId) {
+      if (!confirm('确定启动 Gateway？\n\nGateway 将提供工具调用服务。')) return;
+      
+      const tokenRes = await fetch('/api/token');
+      const tokenData = await tokenRes.json();
+      
+      try {
+        const res = await fetch(`/api/gateway/start?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
+        const result = await res.json();
+        
+        if (result.success) {
+          alert('✅ Gateway 启动命令已发送');
+        } else {
+          alert('❌ 启动失败: ' + result.error);
+        }
+      } catch (e) {
+        alert('❌ 启动失败: ' + e.message);
+      }
+    }
+    
+    async function stopGateway(agentId) {
+      if (!confirm('确定停止 Gateway？\n\n将无法使用工具调用服务。')) return;
+      
+      const tokenRes = await fetch('/api/token');
+      const tokenData = await tokenRes.json();
+      
+      try {
+        const res = await fetch(`/api/gateway/stop?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
+        const result = await res.json();
+        
+        if (result.success) {
+          alert('✅ Gateway 停止命令已发送');
+        } else {
+          alert('❌ 停止失败: ' + result.error);
+        }
+      } catch (e) {
+        alert('❌ 停止失败: ' + e.message);
+      }
+    }
+    
+    function refreshGatewayStatus(agentId) {
+      // WebSocket 会自动刷新状态
+      alert('状态已刷新');
     }
     
     // 定期检查所有在线 Agent 的更新

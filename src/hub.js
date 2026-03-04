@@ -426,6 +426,62 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Gateway 启动
+  if (req.url.startsWith('/api/gateway/start')) {
+    const url = new URL(req.url, 'http://x');
+    const agentId = url.searchParams.get('agent') || 'main';
+    const token = url.searchParams.get('token');
+    
+    // 验证 token
+    if (token !== UPDATE_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid token' }));
+      return;
+    }
+    
+    const agent = agents.get(agentId);
+    if (!agent || !agent.ws) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Agent not found or offline' }));
+      return;
+    }
+    
+    // 发送启动命令到 Agent
+    agent.ws.send(JSON.stringify({ type: 'gateway-start', payload: { token } }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Gateway start command sent' }));
+    return;
+  }
+
+  // Gateway 停止
+  if (req.url.startsWith('/api/gateway/stop')) {
+    const url = new URL(req.url, 'http://x');
+    const agentId = url.searchParams.get('agent') || 'main';
+    const token = url.searchParams.get('token');
+    
+    // 验证 token
+    if (token !== UPDATE_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid token' }));
+      return;
+    }
+    
+    const agent = agents.get(agentId);
+    if (!agent || !agent.ws) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Agent not found or offline' }));
+      return;
+    }
+    
+    // 发送停止命令到 Agent
+    agent.ws.send(JSON.stringify({ type: 'gateway-stop', payload: { token } }));
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, message: 'Gateway stop command sent' }));
+    return;
+  }
+
   res.writeHead(404); res.end('Not Found');
 });
 
