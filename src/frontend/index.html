@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🦞 龙虾营地 - Claw Hub</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+    .header { background: #16213e; padding: 20px; border-bottom: 1px solid #0f3460; }
+    .header h1 { font-size: 24px; }
+    .header .subtitle { color: #888; font-size: 14px; margin-top: 5px; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+    
+    .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .last-update { color: #888; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .ws-status { padding: 4px 10px; border-radius: 20px; font-size: 11px; }
+    .ws-status.connected { background: #00ff8820; color: #00ff88; }
+    .ws-status.disconnected { background: #ff6b6b20; color: #ff6b6b; }
+    
+    .agent-filter { display: flex; gap: 8px; flex-wrap: wrap; }
+    .agent-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid #0f3460; background: #16213e; color: #888; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+    .agent-btn:hover { border-color: #00d9ff; color: #00d9ff; }
+    .agent-btn.active { background: #00d9ff; color: #1a1a2e; border-color: #00d9ff; }
+    
+    .chart-section { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .chart-title { font-size: 14px; color: #00d9ff; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+    .chart-container { position: relative; height: 250px; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .stat-card { background: #16213e; border-radius: 12px; padding: 20px; text-align: center; }
+    .stat-value { font-size: 28px; font-weight: bold; color: #00d9ff; }
+    .stat-label { font-size: 12px; color: #888; margin-top: 5px; text-transform: uppercase; }
+    
+    .agents-table { width: 100%; border-collapse: collapse; background: #16213e; border-radius: 12px; overflow: hidden; }
+    .agents-table th { background: #0f3460; padding: 15px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #00d9ff; }
+    .agents-table td { padding: 15px 12px; border-bottom: 1px solid #1a1a2e; font-size: 14px; }
+    .agents-table tr:last-child td { border-bottom: none; }
+    .agents-table tr:hover { background: #1a1a2e; }
+    
+    .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+    .status-badge.online { background: #00d9ff20; color: #00d9ff; }
+    .status-badge.offline { background: #ff6b6b20; color: #ff6b6b; }
+    .status-badge.running { background: #00ff8820; color: #00ff88; }
+    .status-badge.stopped { background: #ff6b6b20; color: #ff6b6b; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.online, .status-dot.running { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+    .status-dot.offline, .status-dot.stopped { background: #ff6b6b; }
+    
+    .num { font-family: 'SF Mono', Monaco, monospace; font-weight: 600; }
+    .num.highlight { color: #00d9ff; font-size: 16px; }
+    
+    .progress-bar { width: 100%; height: 6px; background: #1a1a2e; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+    .progress-bar .fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    .progress-bar .fill.cpu { background: linear-gradient(90deg, #00d9ff, #00ff88); }
+    .progress-bar .fill.mem { background: linear-gradient(90deg, #ff9f43, #ff6b6b); }
+    
+    .empty { text-align: center; padding: 40px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🦞 龙虾营地</h1>
+    <div class="subtitle">Claw Hub - Agent 监控中心</div>
+  </div>
+  
+  <div class="container">
+    <div class="toolbar">
+      <div class="last-update">
+        <span id="wsStatus" class="ws-status disconnected">未连接</span>
+        <span id="lastUpdate">--</span>
+      </div>
+      <div class="agent-filter" id="agentFilter"></div>
+    </div>
+    
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-value" id="totalAgents">0</div>
+        <div class="stat-label">在线 Agent</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalSessions">0</div>
+        <div class="stat-label">总会话数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalTokens">0</div>
+        <div class="stat-label">今日 Token</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="avgCpu">--</div>
+        <div class="stat-label">平均 CPU</div>
+      </div>
+    </div>
+    
+    <!-- Token 消耗柱状图 -->
+    <div class="chart-section">
+      <div class="chart-title">📊 Token 消耗（半小时/区间，来自数据库）</div>
+      <div class="chart-container">
+        <canvas id="tokenChart"></canvas>
+      </div>
+    </div>
+    
+    <table class="agents-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>状态</th>
+          <th>Gateway</th>
+          <th>会话</th>
+          <th>今日 Token</th>
+          <th>CPU</th>
+          <th>内存</th>
+          <th>最后上线</th>
+        </tr>
+      </thead>
+      <tbody id="agentsBody">
+        <tr><td colspan="8" class="empty">连接中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  
+  <script>
+    let ws = null;
+    let agents = [];
+    let selectedAgent = 'all';
+    let dbHistory = [];  // 从数据库拉取的历史数据
+    let tokenChart = null;
+    
+    // 生成颜色
+    function getColor(index) {
+      const colors = ['#00d9ff', '#ff9f43', '#00ff88', '#ff6b6b', '#a55eea', '#ffd93d'];
+      return colors[index % colors.length];
+    }
+    
+    // 初始化柱状图
+    function initChart() {
+      const ctx = document.getElementById('tokenChart').getContext('2d');
+      tokenChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: []
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: { color: '#888', font: { size: 11 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  return ctx.dataset.label + ': ' + formatTokens(ctx.raw);
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: '#1a1a2e' },
+              ticks: { color: '#888', maxTicksLimit: 12 }
+            },
+            y: {
+              grid: { color: '#1a1a2e' },
+              ticks: { 
+                color: '#888',
+                callback: function(v) { return formatTokens(v); }
+              },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+    
+    // 从 /api/history 拉取历史数据
+    async function fetchHistory() {
+      try {
+        const agentParam = selectedAgent === 'all' ? '' : `&agent=${selectedAgent}`;
+        const res = await fetch(`/api/history?hours=6${agentParam}`);
+        const data = await res.json();
+        dbHistory = data.history || [];
+        updateChart();
+        console.log('[History] 拉取到', dbHistory.length, '个时间槽');
+      } catch (e) {
+        console.error('[History] 拉取失败:', e);
+      }
+    }
+    
+    // 连接 WebSocket
+    function connect() {
+      const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+      ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        document.getElementById('wsStatus').className = 'ws-status connected';
+        document.getElementById('wsStatus').textContent = '已连接';
+        ws.send(JSON.stringify({ type: 'subscribe' }));
+        // 连接后立即拉一次历史
+        fetchHistory();
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'agents') {
+            agents = msg.payload;
+            updateUI();
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+          }
+        } catch (e) {
+          console.error('[WS] 解析失败:', e);
+        }
+      };
+      
+      ws.onclose = () => {
+        document.getElementById('wsStatus').className = 'ws-status disconnected';
+        document.getElementById('wsStatus').textContent = '断开';
+        setTimeout(connect, 5000);
+      };
+    }
+    
+    function updateUI() {
+      updateFilter();
+      updateStats();
+      updateChart();
+      updateTable();
+    }
+    
+    function updateFilter() {
+      const container = document.getElementById('agentFilter');
+      const onlineAgents = agents.filter(a => a.status === 'online');
+      
+      let html = `<button class="agent-btn ${selectedAgent === 'all' ? 'active' : ''}" onclick="selectAgent('all')">全部 (${onlineAgents.length})</button>`;
+      
+      onlineAgents.forEach(agent => {
+        const isActive = selectedAgent === agent.id;
+        html += `<button class="agent-btn ${isActive ? 'active' : ''}" onclick="selectAgent('${agent.id}')">🦞 ${agent.name}</button>`;
+      });
+      
+      container.innerHTML = html;
+    }
+    
+    function selectAgent(id) {
+      selectedAgent = id;
+      updateFilter();
+      fetchHistory();  // 切换 agent 时重新拉取
+    }
+    
+    function updateStats() {
+      const filtered = selectedAgent === 'all' 
+        ? agents.filter(a => a.status === 'online')
+        : agents.filter(a => a.id === selectedAgent);
+      
+      const totalSessions = filtered.reduce((sum, a) => sum + (a.sessions?.count || 0), 0);
+      const totalTokens = filtered.reduce((sum, a) => sum + (a.stats?.todayTokens || 0), 0);
+      const avgCpu = filtered.length > 0 
+        ? (filtered.reduce((sum, a) => sum + (a.stats?.cpu || 0), 0) / filtered.length).toFixed(1)
+        : '--';
+      
+      document.getElementById('totalAgents').textContent = filtered.length;
+      document.getElementById('totalSessions').textContent = totalSessions;
+      document.getElementById('totalTokens').textContent = formatTokens(totalTokens);
+      document.getElementById('avgCpu').textContent = avgCpu + '%';
+    }
+    
+    // 获取最近6小时的半小时时间槽列表
+    function getLast6HourSlots() {
+      const slots = [];
+      const now = new Date();
+      const curMinutes = now.getMinutes() < 30 ? 0 : 30;
+      const curSlot = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), curMinutes);
+      
+      for (let i = 11; i >= 0; i--) {
+        const slot = new Date(curSlot.getTime() - i * 30 * 60 * 1000);
+        const label = slot.getHours().toString().padStart(2, '0') + ':' + slot.getMinutes().toString().padStart(2, '0');
+        slots.push(label);
+      }
+      return slots;
+    }
+    
+    // 更新柱状图（使用数据库数据）
+    function updateChart() {
+      const slots = getLast6HourSlots();
+      
+      // 按 agent 分组
+      const agentData = {};
+      dbHistory.forEach(h => {
+        const aid = h.agent_id;
+        if (!agentData[aid]) agentData[aid] = { name: h.agent_name, slots: {} };
+        agentData[aid].slots[h.time_slot] = h.tokens;
+      });
+      
+      // 构建数据集
+      const agentIds = Object.keys(agentData);
+      const datasets = agentIds.map((aid, index) => {
+        const ad = agentData[aid];
+        const data = slots.map(slot => ad.slots[slot] || 0);
+        const color = getColor(index);
+        return {
+          label: ad.name,
+          data,
+          backgroundColor: color + 'cc',
+          borderColor: color,
+          borderWidth: 1,
+          borderRadius: 4
+        };
+      });
+      
+      // 如果选了特定 agent，只显示那个
+      const finalDatasets = selectedAgent === 'all'
+        ? datasets
+        : datasets.filter((_, i) => agentIds[i] === selectedAgent);
+      
+      tokenChart.data.labels = slots;
+      tokenChart.data.datasets = finalDatasets;
+      tokenChart.update('none');
+    }
+    
+    function updateTable() {
+      const tbody = document.getElementById('agentsBody');
+      const filtered = selectedAgent === 'all'
+        ? agents
+        : agents.filter(a => a.id === selectedAgent);
+      
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">无数据</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = filtered.map(agent => `
+        <tr>
+          <td>
+            <div style="font-weight:600">🦞 ${agent.name || agent.id}</div>
+            <div style="font-size:11px;color:#666">${agent.host || '--'}</div>
+          </td>
+          <td>
+            <span class="status-badge ${agent.status}">
+              <span class="status-dot ${agent.status}"></span>
+              ${agent.status === 'online' ? '在线' : '离线'}
+            </span>
+          </td>
+          <td>
+            <span class="status-badge ${agent.gateway?.status || 'stopped'}">
+              <span class="status-dot ${agent.gateway?.status || 'stopped'}"></span>
+              ${agent.gateway?.status || '--'}
+            </span>
+          </td>
+          <td>
+            <div class="num">${agent.sessions?.count || 0}</div>
+            <div style="font-size:11px;color:#888">今日 ${agent.sessions?.todayActive || 0}</div>
+          </td>
+          <td>
+            <div class="num highlight">${formatTokens(agent.stats?.todayTokens)}</div>
+          </td>
+          <td style="min-width:80px">
+            <div class="num">${agent.stats?.cpu?.toFixed(0) || '--'}%</div>
+            <div class="progress-bar"><div class="fill cpu" style="width:${Math.min(agent.stats?.cpu || 0, 100)}%"></div></div>
+          </td>
+          <td style="min-width:80px">
+            <div class="num">${agent.stats?.memory || '--'}%</div>
+            <div class="progress-bar"><div class="fill mem" style="width:${Math.min(agent.stats?.memory || 0, 100)}%"></div></div>
+          </td>
+          <td>${formatTime(agent.lastSeen)}</td>
+        </tr>
+      `).join('');
+    }
+    
+    function formatTime(ts) {
+      if (!ts) return '--';
+      const d = new Date(ts);
+      const now = new Date();
+      const diff = now - d;
+      if (diff < 60000) return '刚刚';
+      if (diff < 3600000) return Math.floor(diff/60000) + '分钟前';
+      return d.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+    }
+    
+    function formatTokens(n) {
+      if (!n) return '0';
+      if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+      return n.toString();
+    }
+    
+    // 定期刷新历史数据
+    setInterval(fetchHistory, 60000);
+    
+    initChart();
+    connect();
+  </script>
+</body>
+</html>
