@@ -201,12 +201,12 @@
         `;
       }).join('');
       
-      // 初始化图表（使用 setTimeout 确保 DOM 已渲染）
+      // 如果有展开的 Agent，重新初始化图表
       if (expandedAgent) {
         setTimeout(() => {
           initAgentChart(expandedAgent);
           fetchHistory(expandedAgent);
-        }, 100);
+        }, 50);
       }
     }
     
