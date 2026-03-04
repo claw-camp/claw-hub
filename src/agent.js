@@ -208,35 +208,34 @@ function getPlugins() {
         break;
       }
       
-      // 解析表格行
-      if (inTable && line.includes('│')) {
+      // 解析表格行（只处理包含 loaded 的行）
+      if (inTable && line.includes('│') && line.includes('loaded')) {
         const cols = line.split('│').map(c => c.trim()).filter(c => c);
-        if (cols.length >= 5 && cols[0] && cols[0] !== 'Name') {
+        if (cols.length >= 4) {
           const [name, id, status, source, version] = cols;
-          if (status === 'loaded') {
-            // 从 source 推断真实名称
-            let realName = name || id;
-            if (source.includes('memory-core')) {
-              realName = 'Memory (Core)';
-            } else if (source.includes('feishu-card')) {
-              realName = 'Feishu Interactive Card';
-            } else if (source.includes('feishu/index')) {
-              realName = 'Feishu';
-            } else if (source.includes('device-pair')) {
-              realName = 'Device Pairing';
-            } else if (source.includes('phone-control')) {
-              realName = 'Phone Control';
-            } else if (source.includes('talk-voice')) {
-              realName = 'Talk Voice';
-            }
-            
-            plugins.push({
-              name: realName,
-              id: id || 'unknown',
-              version: version || 'unknown',
-              source: source || ''
-            });
+          
+          // 从 source 推断完整名称
+          let fullName = name || id;
+          if (source.includes('device-pair')) {
+            fullName = 'Device Pairing';
+          } else if (source.includes('feishu-card')) {
+            fullName = 'Feishu Interactive Card';
+          } else if (source.includes('feishu/index')) {
+            fullName = 'Feishu';
+          } else if (source.includes('memory-core')) {
+            fullName = 'Memory (Core)';
+          } else if (source.includes('phone-control')) {
+            fullName = 'Phone Control';
+          } else if (source.includes('talk-voice')) {
+            fullName = 'Talk Voice';
           }
+          
+          plugins.push({
+            name: fullName,
+            id: id || 'unknown',
+            version: version || 'unknown',
+            source: source || ''
+          });
         }
       }
     }
