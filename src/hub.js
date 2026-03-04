@@ -212,6 +212,22 @@ const clients = new Set();
 // ──────────────────────────────────────────────
 
 /**
+ * 语义化版本比较
+ * 返回: 1 if a > b, -1 if a < b, 0 if equal
+ */
+function compareVersions(a, b) {
+  const pa = a.replace(/^v/, '').split('.').map(Number);
+  const pb = b.replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+/**
  * 获取 GitHub 最新版本
  */
 async function getLatestVersion() {
@@ -222,12 +238,12 @@ async function getLatestVersion() {
         resolve(VERSION);
         return;
       }
-      // 解析 tags，找到最新版本
+      // 解析 tags，找到最新版本（语义化比较）
       const tags = stdout.split('\n')
         .filter(line => line.includes('refs/tags/'))
         .map(line => line.split('refs/tags/')[1])
         .filter(tag => tag && tag.startsWith('v'))
-        .sort((a, b) => b.localeCompare(a));
+        .sort((a, b) => compareVersions(b, a));
       
       resolve(tags[0] ? tags[0].replace('v', '') : VERSION);
     });
@@ -384,7 +400,7 @@ const server = http.createServer((req, res) => {
     // 获取最新版本
     getLatestVersion().then(latest => {
       const current = agent.agentVersion || '0.0.0';
-      const hasUpdate = latest > current;
+      const hasUpdate = compareVersions(latest, current) > 0;
       
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({

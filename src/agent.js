@@ -21,7 +21,7 @@ const path = require('path');
 
 // Agent 信息
 const AGENT_NAME = '龙虾营地 Agent';
-const AGENT_VERSION = '1.10.0';
+const AGENT_VERSION = '1.10.1';
 const GITHUB_REPO = 'https://github.com/PhosAQy/claw-hub';
 
 // 配置
@@ -283,6 +283,22 @@ function getPlugins() {
 // ──────────────────────────────────────────────
 
 /**
+ * 语义化版本比较
+ * 返回: 1 if a > b, -1 if a < b, 0 if equal
+ */
+function compareVersions(a, b) {
+  const pa = a.replace(/^v/, '').split('.').map(Number);
+  const pb = b.replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+/**
  * 获取最新版本（从 GitHub tags）
  */
 async function getLatestVersion() {
@@ -297,7 +313,7 @@ async function getLatestVersion() {
         .filter(line => line.includes('refs/tags/'))
         .map(line => line.split('refs/tags/')[1])
         .filter(tag => tag && tag.startsWith('v'))
-        .sort((a, b) => b.localeCompare(a));
+        .sort((a, b) => compareVersions(b, a));  // 语义化版本比较
       
       resolve(tags[0] ? tags[0].replace('v', '') : AGENT_VERSION);
     });
