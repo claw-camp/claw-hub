@@ -57,11 +57,30 @@
     .progress-bar .fill.mem { background: linear-gradient(90deg, #ff9f43, #ff6b6b); }
     
     .empty { text-align: center; padding: 40px; color: #666; }
+    
+    .version { font-size: 12px; color: #888; font-weight: normal; margin-left: 8px; }
+    .version.has-update { color: #ff9f43; cursor: pointer; }
+    .version.has-update:hover { text-decoration: underline; }
+    
+    .update-btn { 
+      padding: 4px 12px; 
+      border-radius: 12px; 
+      border: 1px solid #0f3460; 
+      background: #16213e; 
+      color: #888; 
+      cursor: pointer; 
+      font-size: 11px; 
+      margin-left: 10px;
+      transition: all 0.2s;
+    }
+    .update-btn:hover { border-color: #00d9ff; color: #00d9ff; }
+    .update-btn.available { border-color: #ff9f43; color: #ff9f43; }
+    .update-btn.updating { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>🦞 龙虾营地</h1>
+    <h1>🦞 龙虾营地 <span id="version" class="version">v-</span></h1>
     <div class="subtitle">Claw Hub - Agent 监控中心</div>
   </div>
   
@@ -126,6 +145,56 @@
     let selectedAgent = 'all';
     let dbHistory = [];  // 从数据库拉取的历史数据
     let tokenChart = null;
+    let versionInfo = { version: '-', latest: '-', hasUpdate: false };
+    const UPDATE_TOKEN = 'claw-hub-2026';  // 与服务端一致
+    
+    // 获取版本信息
+    async function fetchVersion() {
+      try {
+        const res = await fetch('/api/version');
+        versionInfo = await res.json();
+        const el = document.getElementById('version');
+        el.textContent = 'v' + versionInfo.version;
+        
+        if (versionInfo.hasUpdate) {
+          el.classList.add('has-update');
+          el.title = `有新版本 v${versionInfo.latest}，点击更新`;
+          el.onclick = doUpdate;
+        } else {
+          el.classList.remove('has-update');
+          el.title = '已是最新版本';
+          el.onclick = null;
+        }
+      } catch (e) {
+        document.getElementById('version').textContent = 'v-';
+      }
+    }
+    
+    // 执行更新
+    async function doUpdate() {
+      if (!confirm(`确定更新到 v${versionInfo.latest}？\n\n更新后服务将自动重启。`)) return;
+      
+      const el = document.getElementById('version');
+      el.textContent = '更新中...';
+      
+      try {
+        const res = await fetch(`/api/update?token=${UPDATE_TOKEN}`);
+        const result = await res.json();
+        
+        if (result.success && result.updated) {
+          el.textContent = '已更新，等待重启...';
+          // 5秒后刷新页面
+          setTimeout(() => location.reload(), 5000);
+        } else if (result.success && !result.updated) {
+          el.textContent = 'v' + versionInfo.version + ' (已是最新)';
+        } else {
+          el.textContent = '更新失败: ' + result.error;
+        }
+      } catch (e) {
+        el.textContent = '更新失败';
+        console.error('Update failed:', e);
+      }
+    }
     
     // 生成颜色
     function getColor(index) {
@@ -392,6 +461,7 @@
     
     initChart();
     connect();
+    fetchVersion();  // 获取版本信息
   </script>
 </body>
 </html>

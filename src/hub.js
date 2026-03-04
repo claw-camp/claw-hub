@@ -1,13 +1,19 @@
 /**
  * Claw Hub - 龙虾营地 Hub 服务端
- * 支持：WebSocket 实时推送 + MySQL 持久化（基于 session_updated_at 聚合）
+ * 支持：WebSocket 实时推送 + MySQL 持久化 + 远程更新
  */
 
 const http = require('http');
 const WebSocket = require('ws');
 const mysql = require('mysql2/promise');
+const { execSync, exec } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
 const PORT = 8889;
+const VERSION = require('../package.json').version;
+const GIT_REPO = 'https://github.com/PhosAQy/claw-hub';
+const UPDATE_TOKEN = process.env.CLAW_UPDATE_TOKEN || 'claw-hub-2026';  // 简单的更新令牌
 
 const DB_CONFIG = {
   host: '10.0.100.9',
@@ -196,6 +202,78 @@ async function getTokenTimeSeries(agentId = null, hours = 6) {
 const agents = new Map();
 const clients = new Set();
 
+// ──────────────────────────────────────────────
+// 版本管理和更新
+// ──────────────────────────────────────────────
+
+/**
+ * 获取 GitHub 最新版本
+ */
+async function getLatestVersion() {
+  return new Promise((resolve, reject) => {
+    exec('git ls-remote --tags origin', { timeout: 10000 }, (err, stdout) => {
+      if (err) {
+        // 无法访问远程，返回当前版本
+        resolve(VERSION);
+        return;
+      }
+      // 解析 tags，找到最新版本
+      const tags = stdout.split('\n')
+        .filter(line => line.includes('refs/tags/'))
+        .map(line => line.split('refs/tags/')[1])
+        .filter(tag => tag && tag.startsWith('v'))
+        .sort((a, b) => b.localeCompare(a));
+      
+      resolve(tags[0] ? tags[0].replace('v', '') : VERSION);
+    });
+  });
+}
+
+/**
+ * 执行更新
+ */
+async function doUpdate() {
+  const projectDir = path.join(__dirname, '..');
+  
+  return new Promise((resolve, reject) => {
+    // git pull
+    exec('git pull', { cwd: projectDir, timeout: 30000 }, (err, stdout, stderr) => {
+      if (err) {
+        reject(new Error(`Git pull failed: ${stderr}`));
+        return;
+      }
+      
+      const pullResult = stdout.trim();
+      
+      // 检查是否有更新
+      if (pullResult.includes('Already up to date')) {
+        resolve({ 
+          success: true, 
+          updated: false, 
+          message: 'Already up to date',
+          version: VERSION 
+        });
+        return;
+      }
+      
+      // 有更新，需要重启
+      resolve({
+        success: true,
+        updated: true,
+        message: pullResult,
+        version: VERSION,
+        needRestart: true
+      });
+      
+      // 3秒后重启（给响应时间）
+      setTimeout(() => {
+        console.log('[Hub] 更新完成，正在重启...');
+        process.exit(0);  // 退出，由进程管理器重启
+      }, 3000);
+    });
+  });
+}
+
 const server = http.createServer((req, res) => {
   const allowedOrigins = ['https://camp.aigc.sx.cn', 'http://localhost:8889'];
   const origin = req.headers.origin || '';
@@ -206,6 +284,60 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  // 版本信息
+  if (req.url === '/api/version') {
+    getLatestVersion().then(latest => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        version: VERSION,
+        latest: latest,
+        hasUpdate: latest && latest !== VERSION,
+        repo: GIT_REPO
+      }));
+    }).catch(e => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ version: VERSION, latest: VERSION, hasUpdate: false, repo: GIT_REPO }));
+    });
+    return;
+  }
+
+  // 检查更新
+  if (req.url === '/api/check-update') {
+    getLatestVersion().then(latest => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        current: VERSION,
+        latest: latest,
+        hasUpdate: latest && latest !== VERSION
+      }));
+    }).catch(e => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+    return;
+  }
+
+  // 执行更新（需要 token）
+  if (req.url.startsWith('/api/update')) {
+    const url = new URL(req.url, 'http://x');
+    const token = url.searchParams.get('token');
+    
+    if (token !== UPDATE_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid token' }));
+      return;
+    }
+    
+    doUpdate().then(result => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    }).catch(e => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+    return;
+  }
 
   if (req.url === '/api/agents') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
