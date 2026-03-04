@@ -21,7 +21,7 @@ const path = require('path');
 
 // Agent 信息
 const AGENT_NAME = '龙虾营地 Agent';
-const AGENT_VERSION = '1.5.0';
+const AGENT_VERSION = '1.6.0';
 const GITHUB_REPO = 'https://github.com/PhosAQy/claw-hub';
 
 // 配置
