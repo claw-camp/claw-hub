@@ -21,7 +21,7 @@ const path = require('path');
 
 // Agent 信息
 const AGENT_NAME = '龙虾营地 Agent';
-const AGENT_VERSION = '1.9.0';
+const AGENT_VERSION = '1.9.1';
 const GITHUB_REPO = 'https://github.com/PhosAQy/claw-hub';
 
 // 配置
@@ -369,6 +369,7 @@ function reportStatus() {
     type: 'status',
     payload: {
       id: CONFIG.agentId,
+      host: getHostname(),  // 每次上报主机名
       agentVersion: AGENT_VERSION,  // Agent 版本
       gateway,
       sessions,

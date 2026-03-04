@@ -571,6 +571,7 @@ function handleMessage(ws, msg, setAgentId) {
       if (agents.has(payload.id)) {
         const agent = agents.get(payload.id);
         agent.lastSeen = Date.now();
+        if (payload.host) agent.host = payload.host;  // 更新主机名
         agent.gateway = payload.gateway;
         agent.sessions = payload.sessions || [];
         agent.stats = payload.stats;
