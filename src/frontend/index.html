@@ -291,6 +291,12 @@
         return;
       }
       
+      // 如果有展开的 Agent，重新渲染整个列表（包括详情）
+      if (expandedAgent) {
+        renderAgentList();
+        return;
+      }
+      
       // 否则只更新数据，不重新渲染整个列表
       agents.forEach(agent => {
         const card = document.querySelector(`[data-agent-id="${agent.id}"]`);
