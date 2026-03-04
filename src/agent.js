@@ -248,6 +248,7 @@ function reportStatus() {
     type: 'status',
     payload: {
       id: CONFIG.agentId,
+      agentVersion: AGENT_VERSION,  // Agent 版本
       gateway,
       sessions,
       stats,
