@@ -21,7 +21,7 @@ const path = require('path');
 
 // Agent 信息
 const AGENT_NAME = '龙虾营地 Agent';
-const AGENT_VERSION = '1.10.1';
+const AGENT_VERSION = '1.10.2';
 const GITHUB_REPO = 'https://github.com/PhosAQy/claw-hub';
 
 // 配置
@@ -190,29 +190,35 @@ function getTokenUsage(hours = 6) {
 
 // 获取系统资源
 function getSystemStats() {
+  let cpu = 0, memory = 0;
+  
+  // 获取 CPU（单独 try，避免整体失败）
   try {
-    let cpu = 0;
     const cpuInfo = execSync('top -l 1 -n 0 | grep "CPU usage" 2>/dev/null || echo ""', {
       encoding: 'utf-8',
       timeout: 3000
     });
     const cpuMatch = cpuInfo.match(/(\d+\.?\d*)\s*%/);
     if (cpuMatch) cpu = parseFloat(cpuMatch[1]);
-    
+  } catch (e) {}
+  
+  // 获取内存（单独 try）
+  try {
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
-    const memory = Math.round((1 - freeMem / totalMem) * 100);
-    
-    // 从精确数据计算今日 token（含 cacheRead）
+    memory = Math.round((1 - freeMem / totalMem) * 100);
+  } catch (e) {}
+  
+  // 从精确数据计算今日 token（单独 try）
+  let todayNetTokens = 0, todayCacheRead = 0;
+  try {
     const tokenUsage = getTokenUsage(24);
-    const todayNetTokens = tokenUsage.reduce((sum, s) => sum + s.netTokens, 0);
-    const todayCacheRead = tokenUsage.reduce((sum, s) => sum + s.cacheRead, 0);
-    const todayTokens = todayNetTokens + todayCacheRead;  // 总处理量
-    
-    return { cpu, memory, todayTokens, todayNetTokens, todayCacheRead };
-  } catch (e) {
-    return { cpu: 0, memory: 0, todayTokens: 0, todayNetTokens: 0, todayCacheRead: 0 };
-  }
+    todayNetTokens = tokenUsage.reduce((sum, s) => sum + (s.netTokens || 0), 0);
+    todayCacheRead = tokenUsage.reduce((sum, s) => sum + (s.cacheRead || 0), 0);
+  } catch (e) {}
+  
+  const todayTokens = todayNetTokens + todayCacheRead;
+  return { cpu, memory, todayTokens, todayNetTokens, todayCacheRead };
 }
 
 // 获取已加载的插件列表
