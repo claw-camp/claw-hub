@@ -132,6 +132,68 @@
       box-shadow: 0 2px 8px rgba(0, 217, 255, 0.3);
     }
     
+    /* Toast 消息样式 */
+    #toast-container {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    
+    .toast {
+      padding: 12px 24px;
+      border-radius: 12px;
+      background: rgba(22, 33, 62, 0.95);
+      color: #eee;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border: 1px solid #0f3460;
+      animation: slideIn 0.3s ease-out, fadeOut 0.3s ease-out 2.7s forwards;
+      pointer-events: auto;
+    }
+    
+    .toast.success {
+      border-color: #00ff88;
+      color: #00ff88;
+    }
+    
+    .toast.error {
+      border-color: #ff6b6b;
+      color: #ff6b6b;
+    }
+    
+    .toast.info {
+      border-color: #00d9ff;
+      color: #00d9ff;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+        visibility: hidden;
+      }
+    }
+    
     @media (max-width: 768px) {
       .agent-header { grid-template-columns: 1fr; gap: 10px; }
       .details-grid { grid-template-columns: 1fr; }
@@ -139,6 +201,9 @@
   </style>
 </head>
 <body>
+  <!-- Toast 消息容器 -->
+  <div id="toast-container"></div>
+  
   <div class="header">
     <h1>
       🦞 龙虾营地
@@ -162,6 +227,23 @@
     let versionInfo = { version: '-', latest: '-', hasUpdate: false };
     let agentUpdateInfo = {};
     let historyUpdateTimer = null;  // 历史数据更新定时器
+    
+    // Toast 消息系统
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      
+      container.appendChild(toast);
+      
+      // 3 秒后自动移除
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.remove();
+        }
+      }, 3000);
+    }
     
     // 连接 WebSocket
     function connect() {
@@ -543,7 +625,7 @@
     async function doAgentUpdate(agentId) {
       const updateInfo = agentUpdateInfo[agentId];
       if (!updateInfo || !updateInfo.hasUpdate) {
-        alert('Agent 已是最新版本');
+        showToast('Agent 已是最新版本', 'info');
         return;
       }
       
@@ -553,7 +635,7 @@
       const tokenData = await tokenRes.json();
       
       if (!tokenData.token) {
-        alert('无法获取更新令牌');
+        showToast('无法获取更新令牌', 'error');
         return;
       }
       
@@ -562,12 +644,12 @@
         const result = await res.json();
         
         if (result.success) {
-          alert('✅ 更新命令已发送，Agent 将在几秒后重启');
+          showToast('✅ 更新命令已发送，Agent 将在几秒后重启', 'success');
         } else {
-          alert('❌ 更新失败: ' + result.error);
+          showToast('❌ 更新失败: ' + result.error, 'error');
         }
       } catch (e) {
-        alert('❌ 更新失败: ' + e.message);
+        showToast('❌ 更新失败: ' + e.message, 'error');
       }
     }
     
@@ -581,12 +663,13 @@
         const result = await res.json();
         
         if (result.success) {
+          showToast('✅ Gateway 启动命令已发送', 'success');
           console.log('[Gateway] 启动命令已发送');
         } else {
-          alert('❌ 启动失败: ' + result.error);
+          showToast('❌ 启动失败: ' + result.error, 'error');
         }
       } catch (e) {
-        alert('❌ 启动失败: ' + e.message);
+        showToast('❌ 启动失败: ' + e.message, 'error');
       }
     }
     
@@ -599,16 +682,18 @@
         const result = await res.json();
         
         if (result.success) {
+          showToast('✅ Gateway 停止命令已发送', 'success');
           console.log('[Gateway] 停止命令已发送');
         } else {
-          alert('❌ 停止失败: ' + result.error);
+          showToast('❌ 停止失败: ' + result.error, 'error');
         }
       } catch (e) {
-        alert('❌ 停止失败: ' + e.message);
+        showToast('❌ 停止失败: ' + e.message, 'error');
       }
     }
     
     function refreshGatewayStatus(agentId) {
+      showToast('✅ 状态已刷新', 'info');
       console.log('[Gateway] 状态已刷新');
     }
     
