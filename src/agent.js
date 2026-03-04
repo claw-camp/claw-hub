@@ -174,6 +174,54 @@ function getSystemStats() {
   }
 }
 
+// 获取已加载的插件列表
+function getPlugins() {
+  try {
+    const result = execSync('openclaw plugins list 2>/dev/null', {
+      encoding: 'utf-8',
+      timeout: 10000
+    });
+    
+    // 解析表格格式
+    const plugins = [];
+    const lines = result.split('\n');
+    let inTable = false;
+    
+    for (const line of lines) {
+      // 检测表格开始（包含表头分隔符）
+      if (line.includes('─') && line.includes('┼')) {
+        inTable = true;
+        continue;
+      }
+      
+      // 检测表格结束
+      if (inTable && line.includes('└')) {
+        break;
+      }
+      
+      // 解析表格行
+      if (inTable && line.includes('│')) {
+        const cols = line.split('│').map(c => c.trim()).filter(c => c);
+        if (cols.length >= 5 && cols[0] && cols[0] !== 'Name') {
+          const [name, id, status, source, version] = cols;
+          if (status === 'loaded') {
+            plugins.push({
+              name: name || id,
+              id,
+              version: version || 'unknown',
+              source: source || ''
+            });
+          }
+        }
+      }
+    }
+    
+    return plugins;
+  } catch (e) {
+    return [];
+  }
+}
+
 // 发送消息
 function send(msg) {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -187,6 +235,7 @@ function reportStatus() {
   const sessions = getSessions();
   const stats = getSystemStats();
   const tokenUsage = getTokenUsage(6);  // 最近 6 小时
+  const plugins = getPlugins();  // 获取插件列表
   
   send({
     type: 'status',
@@ -195,7 +244,8 @@ function reportStatus() {
       gateway,
       sessions,
       stats,
-      tokenUsage  // 新增：精确的 token 使用数据
+      tokenUsage,  // 精确的 token 使用数据
+      plugins      // 新增：插件列表
     }
   });
 }

@@ -76,6 +76,25 @@
     .update-btn:hover { border-color: #00d9ff; color: #00d9ff; }
     .update-btn.available { border-color: #ff9f43; color: #ff9f43; }
     .update-btn.updating { opacity: 0.5; cursor: not-allowed; }
+    
+    .plugins-section { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .plugins-title { font-size: 14px; color: #00d9ff; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+    .plugins-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .plugin-card { background: #1a1a2e; border-radius: 8px; padding: 12px; border: 1px solid #0f3460; }
+    .plugin-card:hover { border-color: #00d9ff; }
+    .plugin-name { font-weight: 600; color: #eee; font-size: 13px; margin-bottom: 4px; }
+    .plugin-version { font-size: 11px; color: #888; }
+    .plugin-version span { color: #00ff88; }
+    
+    .plugins-section { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .plugins-title { font-size: 14px; color: #00d9ff; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+    .plugins-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .plugin-card { background: #1a1a2e; border-radius: 8px; padding: 12px; border: 1px solid #0f3460; transition: all 0.2s; }
+    .plugin-card:hover { border-color: #00d9ff; transform: translateY(-2px); }
+    .plugin-name { font-weight: 600; color: #eee; font-size: 13px; margin-bottom: 4px; }
+    .plugin-version { font-size: 11px; color: #888; }
+    .plugin-version span { color: #00ff88; font-weight: 500; }
+    .plugin-status { font-size: 10px; color: #00ff88; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -117,6 +136,14 @@
       <div class="chart-title">📊 Token 消耗（半小时/区间，来自数据库）</div>
       <div class="chart-container">
         <canvas id="tokenChart"></canvas>
+      </div>
+    </div>
+    
+    <!-- 插件列表 -->
+    <div class="plugins-section">
+      <div class="plugins-title">🧩 已加载插件</div>
+      <div class="plugins-grid" id="pluginsGrid">
+        <div style="color:#666;font-size:12px">加载中...</div>
       </div>
     </div>
     
@@ -312,6 +339,7 @@
       updateStats();
       updateChart();
       updateTable();
+      updatePlugins();
     }
     
     function updateFilter() {
@@ -450,6 +478,27 @@
           </td>
           <td>${formatTime(agent.lastSeen)}</td>
         </tr>
+      `).join('');
+    }
+    
+    // 更新插件列表
+    function updatePlugins() {
+      const container = document.getElementById('pluginsGrid');
+      
+      // 从第一个在线 agent 获取插件列表
+      const onlineAgent = agents.find(a => a.status === 'online' && a.plugins);
+      
+      if (!onlineAgent || !onlineAgent.plugins || onlineAgent.plugins.length === 0) {
+        container.innerHTML = '<div style="color:#666;font-size:12px">暂无插件数据</div>';
+        return;
+      }
+      
+      container.innerHTML = onlineAgent.plugins.map(plugin => `
+        <div class="plugin-card">
+          <div class="plugin-name">${plugin.name}</div>
+          <div class="plugin-version">v<span>${plugin.version}</span></div>
+          ${plugin.source ? `<div class="plugin-status">${plugin.source.includes('stock') ? '📦 内置' : '🔧 自定义'}</div>` : ''}
+        </div>
       `).join('');
     }
     
