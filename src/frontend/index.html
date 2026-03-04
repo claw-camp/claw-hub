@@ -325,7 +325,8 @@
           
           data.history.forEach(h => {
             const idx = slots.indexOf(h.time_slot);
-            if (idx >= 0) values[idx] = h.netTokens;
+            // API 返回的字段是 'tokens'，不是 'netTokens'
+            if (idx >= 0) values[idx] = parseInt(h.tokens) || 0;
           });
           
           charts[agentId].data.datasets[0].data = values;
