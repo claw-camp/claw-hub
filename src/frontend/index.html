@@ -80,6 +80,58 @@
     .update-btn:hover { border-color: #00d9ff; color: #00d9ff; }
     .update-btn.available { border-color: #ff9f43; color: #ff9f43; }
     
+    .control-btn {
+      padding: 6px 14px;
+      border-radius: 12px;
+      border: 1px solid #0f3460;
+      background: #16213e;
+      color: #888;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .control-btn:hover {
+      border-color: #00d9ff;
+      color: #00d9ff;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 217, 255, 0.2);
+    }
+    
+    .control-btn.start {
+      border-color: #00ff88;
+      color: #00ff88;
+    }
+    
+    .control-btn.start:hover {
+      background: rgba(0, 255, 136, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 255, 136, 0.3);
+    }
+    
+    .control-btn.stop {
+      border-color: #ff6b6b;
+      color: #ff6b6b;
+    }
+    
+    .control-btn.stop:hover {
+      background: rgba(255, 107, 107, 0.1);
+      box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+    }
+    
+    .control-btn.refresh {
+      border-color: #00d9ff;
+      color: #00d9ff;
+    }
+    
+    .control-btn.refresh:hover {
+      background: rgba(0, 217, 255, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 217, 255, 0.3);
+    }
+    
     @media (max-width: 768px) {
       .agent-header { grid-template-columns: 1fr; gap: 10px; }
       .details-grid { grid-template-columns: 1fr; }
@@ -292,7 +344,7 @@
             
             <div class="detail-section">
               <div class="detail-title">🚪 Gateway 管理</div>
-              <div style="display: flex; gap: 10px; align-items: center;">
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                 <span class="status-badge ${gatewayRunning ? 'online' : 'offline'}">
                   <span class="status-dot ${gatewayRunning ? 'online' : 'offline'}"></span>
                   ${gatewayRunning ? '运行中' : '已停止'}
@@ -521,8 +573,6 @@
     
     // Gateway 管理
     async function startGateway(agentId) {
-      if (!confirm('确定启动 Gateway？\n\nGateway 将提供工具调用服务。')) return;
-      
       const tokenRes = await fetch('/api/token');
       const tokenData = await tokenRes.json();
       
@@ -531,7 +581,7 @@
         const result = await res.json();
         
         if (result.success) {
-          alert('✅ Gateway 启动命令已发送');
+          console.log('[Gateway] 启动命令已发送');
         } else {
           alert('❌ 启动失败: ' + result.error);
         }
@@ -541,8 +591,6 @@
     }
     
     async function stopGateway(agentId) {
-      if (!confirm('确定停止 Gateway？\n\n将无法使用工具调用服务。')) return;
-      
       const tokenRes = await fetch('/api/token');
       const tokenData = await tokenRes.json();
       
@@ -551,7 +599,7 @@
         const result = await res.json();
         
         if (result.success) {
-          alert('✅ Gateway 停止命令已发送');
+          console.log('[Gateway] 停止命令已发送');
         } else {
           alert('❌ 停止失败: ' + result.error);
         }
@@ -561,8 +609,7 @@
     }
     
     function refreshGatewayStatus(agentId) {
-      // WebSocket 会自动刷新状态
-      alert('状态已刷新');
+      console.log('[Gateway] 状态已刷新');
     }
     
     // 定期检查所有在线 Agent 的更新
