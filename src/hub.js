@@ -10,22 +10,27 @@ const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const PORT = 8889;
+const PORT = process.env.CLAW_HUB_PORT || 8889;
 const VERSION = require('../package.json').version;
 const GIT_REPO = 'https://github.com/PhosAQy/claw-hub';
-const UPDATE_TOKEN = process.env.CLAW_UPDATE_TOKEN || 'claw-hub-2026';  // 简单的更新令牌
+const UPDATE_TOKEN = process.env.CLAW_UPDATE_TOKEN || 'claw-hub-2026';
 
+// 数据库配置 - 从环境变量读取
 const DB_CONFIG = {
-  host: '10.0.100.9',
-  port: 3306,
-  user: 'claude',
-  password: 'claude_code_666',
-  database: 'claw_camp',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT) || 3306,
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'claw_camp',
   waitForConnections: true,
   connectionLimit: 5,
   timezone: '+08:00',
   connectTimeout: 5000
 };
+
+if (!DB_CONFIG.password) {
+  console.error('[DB] ⚠️ 未设置数据库密码，请配置环境变量 DB_PASSWORD');
+}
 
 let pool = null;
 

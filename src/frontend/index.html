@@ -146,7 +146,8 @@
     let dbHistory = [];  // 从数据库拉取的历史数据
     let tokenChart = null;
     let versionInfo = { version: '-', latest: '-', hasUpdate: false };
-    const UPDATE_TOKEN = 'claw-hub-2026';  // 与服务端一致
+    // 注意: 更新令牌需要从服务端获取，不能硬编码在前端
+    let updateToken = null;
     
     // 获取版本信息
     async function fetchVersion() {
@@ -172,13 +173,26 @@
     
     // 执行更新
     async function doUpdate() {
+      if (!versionInfo.hasUpdate) {
+        alert('已是最新版本');
+        return;
+      }
+      
       if (!confirm(`确定更新到 v${versionInfo.latest}？\n\n更新后服务将自动重启。`)) return;
       
       const el = document.getElementById('version');
       el.textContent = '更新中...';
       
       try {
-        const res = await fetch(`/api/update?token=${UPDATE_TOKEN}`);
+        // 先从服务端获取临时更新令牌
+        const tokenRes = await fetch('/api/token');
+        const tokenData = await tokenRes.json();
+        
+        if (!tokenData.token) {
+          throw new Error('无法获取更新令牌');
+        }
+        
+        const res = await fetch(`/api/update?token=${encodeURIComponent(tokenData.token)}`);
         const result = await res.json();
         
         if (result.success && result.updated) {
