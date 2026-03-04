@@ -21,7 +21,7 @@ const path = require('path');
 
 // Agent 信息
 const AGENT_NAME = '龙虾营地 Agent';
-const AGENT_VERSION = '1.9.1';
+const AGENT_VERSION = '1.10.0';
 const GITHUB_REPO = 'https://github.com/PhosAQy/claw-hub';
 
 // 配置
@@ -182,7 +182,8 @@ function getTokenUsage(hours = 6) {
     .map(s => ({
       ...s,
       // 总消耗 = 输入 + 输出（缓存命中是优化指标，不影响实际消耗）
-      netTokens: s.input + s.output
+      netTokens: s.input + s.output,
+      totalTokens: s.input + s.output + s.cacheRead  // 含缓存的总量
     }))
     .sort((a, b) => a.slot.localeCompare(b.slot));
 }
@@ -202,13 +203,15 @@ function getSystemStats() {
     const freeMem = os.freemem();
     const memory = Math.round((1 - freeMem / totalMem) * 100);
     
-    // 从精确数据计算今日 token
+    // 从精确数据计算今日 token（含 cacheRead）
     const tokenUsage = getTokenUsage(24);
-    const todayTokens = tokenUsage.reduce((sum, s) => sum + s.netTokens, 0);
+    const todayNetTokens = tokenUsage.reduce((sum, s) => sum + s.netTokens, 0);
+    const todayCacheRead = tokenUsage.reduce((sum, s) => sum + s.cacheRead, 0);
+    const todayTokens = todayNetTokens + todayCacheRead;  // 总处理量
     
-    return { cpu, memory, todayTokens };
+    return { cpu, memory, todayTokens, todayNetTokens, todayCacheRead };
   } catch (e) {
-    return { cpu: 0, memory: 0, todayTokens: 0 };
+    return { cpu: 0, memory: 0, todayTokens: 0, todayNetTokens: 0, todayCacheRead: 0 };
   }
 }
 
