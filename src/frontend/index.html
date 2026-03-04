@@ -118,6 +118,31 @@
       color: #666;
     }
     
+    .runtime-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    
+    .runtime-item {
+      background: #1a1a2e;
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid #0f3460;
+    }
+    
+    .runtime-label {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+    
+    .runtime-value {
+      font-size: 14px;
+      color: #eee;
+      font-weight: 500;
+    }
+    
     .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
     .status-badge.online { background: #00d9ff20; color: #00d9ff; }
     .status-badge.offline { background: #ff6b6b20; color: #ff6b6b; }
@@ -486,6 +511,8 @@
       const gatewayStatus = agent.gateway?.status || 'unknown';
       const gatewayRunning = gatewayStatus === 'running';
       const sessions = agent.sessions?.list || [];
+      const uptime = agent.uptime || { hours: 0, minutes: 0 };
+      const startTime = agent.startTime ? new Date(agent.startTime) : null;
       
       return `
         <div class="agent-details">
@@ -494,6 +521,24 @@
               <div class="detail-title">📊 Token 消耗（最近6小时）</div>
               <div class="chart-container">
                 <canvas id="chart-${agent.id}"></canvas>
+              </div>
+            </div>
+            
+            <div class="detail-section">
+              <div class="detail-title">⏱️ 运行状态</div>
+              <div class="runtime-info">
+                <div class="runtime-item">
+                  <div class="runtime-label">运行时长</div>
+                  <div class="runtime-value">${uptime.hours}小时 ${uptime.minutes}分钟</div>
+                </div>
+                <div class="runtime-item">
+                  <div class="runtime-label">启动时间</div>
+                  <div class="runtime-value">${startTime ? startTime.toLocaleString('zh-CN') : '--'}</div>
+                </div>
+                <div class="runtime-item">
+                  <div class="runtime-label">会话统计</div>
+                  <div class="runtime-value">${agent.sessions?.count || 0} 个会话 · 今日活跃 ${agent.sessions?.todayActive || 0}</div>
+                </div>
               </div>
             </div>
             
