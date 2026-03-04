@@ -150,6 +150,41 @@
         return;
       }
       
+      // 如果容器为空，首次渲染
+      if (!container.innerHTML || container.innerHTML.includes('empty')) {
+        renderAgentList();
+        return;
+      }
+      
+      // 否则只更新数据，不重新渲染整个列表
+      agents.forEach(agent => {
+        const card = document.querySelector(`[data-agent-id="${agent.id}"]`);
+        if (!card) return;
+        
+        // 更新统计数字
+        const statBoxes = card.querySelectorAll('.stat-value');
+        if (statBoxes.length >= 4) {
+          statBoxes[0].textContent = agent.sessions?.count || 0;
+          statBoxes[1].textContent = formatTokens(agent.stats?.todayTokens);
+          statBoxes[2].textContent = (agent.stats?.cpu?.toFixed(0) || '--') + '%';
+          statBoxes[3].textContent = (agent.stats?.memory || '--') + '%';
+        }
+        
+        // 更新状态徽章
+        const statusBadge = card.querySelector('.status-badge');
+        const statusDot = card.querySelector('.status-dot');
+        if (statusBadge && statusDot) {
+          statusBadge.className = `status-badge ${agent.status}`;
+          statusDot.className = `status-dot ${agent.status}`;
+          statusBadge.lastChild.textContent = agent.status === 'online' ? '在线' : '离线';
+        }
+      });
+    }
+    
+    // 渲染完整的 Agent 列表（只在首次或展开/收起时调用）
+    function renderAgentList() {
+      const container = document.getElementById('agentsList');
+      
       container.innerHTML = agents.map(agent => {
         const isExpanded = expandedAgent === agent.id;
         return `
@@ -201,7 +236,7 @@
         `;
       }).join('');
       
-      // 如果有展开的 Agent，重新初始化图表
+      // 如果有展开的 Agent，初始化图表
       if (expandedAgent) {
         setTimeout(() => {
           initAgentChart(expandedAgent);
@@ -248,7 +283,7 @@
       } else {
         expandedAgent = agentId;
       }
-      updateAgentsList();
+      renderAgentList();  // 展开/收起时需要重新渲染
     }
     
     // 初始化 Agent 图表
@@ -399,7 +434,7 @@
         const res = await fetch(`/api/agent/check-update?agent=${agentId}`);
         const data = await res.json();
         agentUpdateInfo[agentId] = data;
-        updateAgentsList();
+        renderAgentList();  // 更新按钮显示需要重新渲染
       } catch (e) {
         console.error('[Agent Update] 检查失败:', e);
       }
