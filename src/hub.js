@@ -428,6 +428,12 @@ function handleMessage(ws, msg, setAgentId) {
         agent.sessions = payload.sessions || [];
         agent.stats = payload.stats;
         agent.plugins = payload.plugins || [];  // 保存插件列表
+        
+        // Debug: 输出收到的插件数据
+        if (payload.plugins && payload.plugins.length > 0) {
+          console.log(`[Hub] 收到 ${payload.id} 的插件数据: ${payload.plugins.length} 个`);
+        }
+        
         // 异步存库
         saveSnapshots(payload.id, agent.name, payload.sessions);
         // 存储精确的 token 使用数据
