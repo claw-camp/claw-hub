@@ -1,6 +1,6 @@
 {
   "name": "claw-hub",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "🦞 OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway 健康度",
   "main": "src/hub.js",
   "scripts": {
