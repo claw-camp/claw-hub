@@ -1048,11 +1048,11 @@ const server = http.createServer((req, res) => {
       }
 
       // 验证用户身份
-      const [users] = await pool.execute('SELECT id FROM users WHERE camp_key = ? AND is_active = 1', [campKey]);
+      const [users] = await pool.execute('SELECT user_id FROM users WHERE camp_key = ? AND is_active = 1', [campKey]);
       if (!users.length) {
         res.writeHead(401); res.end(JSON.stringify({ error: 'unauthorized' })); return;
       }
-      const userId = users[0].id;
+      const userId = users[0].user_id;
 
       // 验证该 bot 属于该用户
       const [bots] = await pool.execute(
