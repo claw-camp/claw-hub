@@ -1992,7 +1992,7 @@
               </div>
               <div class="bot-actions">
                 <span class="bot-status-badge disconnected" id="badge-${bot.bot_id}">● 未连接</span>
-                <button class="control-btn connect-btn" id="conn-btn-${bot.bot_id}" onclick="checkBotStatus('${bot.bot_id}')">🔌 连接</button>
+                <button class="control-btn connect-btn" id="conn-btn-${bot.bot_id}" onclick="checkBotStatus('${bot.bot_id}', true)">🔌 连接</button>
                 <button class="control-btn refresh" onclick="showBotDetail('${bot.bot_id}')">📋 管理</button>
               </div>
             </div>
@@ -2000,13 +2000,22 @@
           </div>
         `).join('');
         
+        // 自动连接：检查 localStorage 中的 autoConnect 状态
+        const autoConnect = JSON.parse(localStorage.getItem('clawCampAutoConnect') || '{}');
+        data.bots.forEach(bot => {
+          if (autoConnect[bot.bot_id] === 1) {
+            checkBotStatus(bot.bot_id, false); // false = 不更新 autoConnect 状态
+          }
+        });
+        
       } catch (err) {
         botList.innerHTML = `<div class="empty-state">加载失败: ${err.message}</div>`;
       }
     }
 
     // 检测单个 bot 的连接状态并更新 UI
-    async function checkBotStatus(botId) {
+    // saveAutoConnect: 是否保存自动连接状态（手动点击时为 true，自动检查时为 false）
+    async function checkBotStatus(botId, saveAutoConnect = false) {
       const badge = document.getElementById(`badge-${botId}`);
       const btn = document.getElementById(`conn-btn-${botId}`);
       const detail = document.getElementById(`detail-${botId}`);
@@ -2029,6 +2038,13 @@
           badge.className = 'bot-status-badge connected';
           badge.textContent = '● 在线';
           if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新'; }
+          
+          // 保存自动连接状态
+          if (saveAutoConnect) {
+            const autoConnect = JSON.parse(localStorage.getItem('clawCampAutoConnect') || '{}');
+            autoConnect[botId] = 1;
+            localStorage.setItem('clawCampAutoConnect', JSON.stringify(autoConnect));
+          }
 
           // 兼容 sessions 是对象或数组
           let sessionCount = 0;
@@ -2075,13 +2091,38 @@
           badge.className = 'bot-status-badge disconnected';
           badge.textContent = '● 离线';
           if (btn) { btn.disabled = false; btn.textContent = '🔌 连接'; }
-          detail.innerHTML = '';
+          
+          // 检查是否有自动连接状态
+          const autoConnect = JSON.parse(localStorage.getItem('clawCampAutoConnect') || '{}');
+          if (autoConnect[botId] === 1) {
+            detail.innerHTML = `
+              <div class="agent-connect-info not-connected">
+                <p>⚠️ Agent 未连接</p>
+                <p style="font-size:12px;color:#666;">自动连接已开启，等待 Agent 上线...</p>
+                <button class="control-btn" style="margin-top:8px;font-size:12px;" onclick="disableAutoConnect('${botId}')">❌ 取消自动连接</button>
+              </div>
+            `;
+          } else {
+            detail.innerHTML = '';
+          }
         }
       } catch (e) {
         if (badge) { badge.className = 'bot-status-badge disconnected'; badge.textContent = '● 离线'; }
         if (btn) { btn.disabled = false; btn.textContent = '🔌 连接'; }
         if (detail) detail.innerHTML = '';
       }
+    }
+    
+    // 取消自动连接
+    function disableAutoConnect(botId) {
+      const autoConnect = JSON.parse(localStorage.getItem('clawCampAutoConnect') || '{}');
+      autoConnect[botId] = 0;
+      localStorage.setItem('clawCampAutoConnect', JSON.stringify(autoConnect));
+      
+      // 更新 UI
+      const detail = document.getElementById(`detail-${botId}`);
+      if (detail) detail.innerHTML = '';
+      showToast('已取消自动连接', 'info');
     }
     
     // 显示创建 Bot 模态框
