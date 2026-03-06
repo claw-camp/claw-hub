@@ -1991,16 +1991,14 @@
                 <div class="bot-meta">${bot.description || '无备注'} · 创建于 ${new Date(bot.created_at).toLocaleDateString('zh-CN')}</div>
               </div>
               <div class="bot-actions">
-                <span class="bot-status-badge checking" id="badge-${bot.bot_id}">● 检测中</span>
+                <span class="bot-status-badge disconnected" id="badge-${bot.bot_id}">● 未连接</span>
+                <button class="control-btn connect-btn" id="conn-btn-${bot.bot_id}" onclick="checkBotStatus('${bot.bot_id}')">🔌 连接</button>
                 <button class="control-btn refresh" onclick="showBotDetail('${bot.bot_id}')">📋 管理</button>
               </div>
             </div>
             <div class="bot-connect-detail" id="detail-${bot.bot_id}"></div>
           </div>
         `).join('');
-        
-        // 并发检测每个 bot 的连接状态
-        data.bots.forEach(bot => checkBotStatus(bot.bot_id));
         
       } catch (err) {
         botList.innerHTML = `<div class="empty-state">加载失败: ${err.message}</div>`;
@@ -2010,8 +2008,15 @@
     // 检测单个 bot 的连接状态并更新 UI
     async function checkBotStatus(botId) {
       const badge = document.getElementById(`badge-${botId}`);
+      const btn = document.getElementById(`conn-btn-${botId}`);
       const detail = document.getElementById(`detail-${botId}`);
       if (!badge || !detail) return;
+
+      // 显示检测中状态
+      badge.className = 'bot-status-badge checking';
+      badge.textContent = '● 检测中';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 检测中'; }
+      detail.innerHTML = '';
 
       try {
         const res = await fetch(`/api/bot/status?botId=${botId}`, {
@@ -2023,6 +2028,7 @@
           const agent = data.agent;
           badge.className = 'bot-status-badge connected';
           badge.textContent = '● 在线';
+          if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新'; }
 
           let totalTokens = 0;
           if (agent.sessions) agent.sessions.forEach(s => totalTokens += (s.tokens || 0));
@@ -2058,10 +2064,12 @@
         } else {
           badge.className = 'bot-status-badge disconnected';
           badge.textContent = '● 离线';
+          if (btn) { btn.disabled = false; btn.textContent = '🔌 连接'; }
           detail.innerHTML = '';
         }
       } catch (e) {
         if (badge) { badge.className = 'bot-status-badge disconnected'; badge.textContent = '● 离线'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🔌 连接'; }
         if (detail) detail.innerHTML = '';
       }
     }
