@@ -1239,40 +1239,7 @@
           <button class="control-btn start" onclick="showCreateBotModal()">➕ 创建 Bot</button>
         </div>
         
-        <div class="quick-start">
-          <h3>📖 快速开始</h3>
-          <ol>
-            <li>点击右上角"创建 Bot"按钮创建一个新 Bot</li>
-            <li>复制 Bot Token 和 Bot ID</li>
-            <li>配置本地 OpenClaw：
-<pre><code>{
-  "plugins": {
-    "entries": {
-      "claw-camp-agent": {
-        "enabled": true,
-        "hubUrl": "wss://camp.aigc.sx.cn/ws",
-        "token": "YOUR_BOT_TOKEN",
-        "agentId": "YOUR_BOT_ID"
-      }
-    }
-  }
-}</code></pre>
-            </li>
-            <li>启动本地 Agent：<code>bash ~/.openclaw/workspace/scripts/start-claw-camp-agent.sh</code></li>
-            <li>刷新页面查看 Agent 状态</li>
-          </ol>
-        </div>
-        
         <div id="botsList" class="bots-list">加载中...</div>
-        
-        <!-- Agent 状态（折叠） -->
-        <div class="agent-status-section">
-          <div class="section-header">
-            <h3>📊 在线 Agent</h3>
-            <button class="control-btn refresh" onclick="refreshAgentList()">🔄 刷新</button>
-          </div>
-          <div id="agentList" class="agent-list-compact"></div>
-        </div>
       </div>
     </div>
   </div>
@@ -1971,46 +1938,9 @@
     // Bot 管理（主页面）
     // ──────────────────────────────────────────────
     
-    // 加载 Bot 列表（主页面）
+    // 加载 Bot 列表（主页面，转发到 loadBotList）
     async function loadBots() {
-      const botsList = document.getElementById('botsList');
-      if (!botsList) return;
-      
-      botsList.innerHTML = '<div class="empty-state">加载中...</div>';
-      
-      try {
-        const res = await fetch(`/api/bot/list?userId=${currentUser.userId}`);
-        const data = await res.json();
-        
-        if (!data.success) {
-          throw new Error(data.error || '加载失败');
-        }
-        
-        if (data.bots.length === 0) {
-          botsList.innerHTML = `
-            <div class="empty-state">
-              <p>还没有创建 Bot</p>
-              <p style="margin-top: 10px; font-size: 13px;">点击右上角"创建 Bot"按钮开始</p>
-            </div>
-          `;
-          return;
-        }
-        
-        botsList.innerHTML = data.bots.map(bot => `
-          <div class="bot-item" onclick="showBotDetail('${bot.bot_id}')">
-            <div class="bot-info">
-              <div class="bot-name">${bot.avatar || '🦞'} ${bot.name}</div>
-              <div class="bot-meta">${bot.description || '无备注'} · 创建于 ${new Date(bot.created_at).toLocaleDateString('zh-CN')}</div>
-            </div>
-            <div class="bot-actions">
-              <button class="control-btn refresh" onclick="event.stopPropagation(); showBotDetail('${bot.bot_id}')">📋 查看详情</button>
-            </div>
-          </div>
-        `).join('');
-        
-      } catch (err) {
-        botsList.innerHTML = `<div class="empty-state">加载失败: ${err.message}</div>`;
-      }
+      return loadBotList();
     }
     
     // 显示创建 Bot 模态框（主页面按钮）
@@ -2038,22 +1968,21 @@
     
     // 加载 Bot 列表（Key 模态框）
     async function loadBotList() {
-      const botList = document.getElementById('botList');
+      const botList = document.getElementById('botsList');
       botList.innerHTML = '<div class="empty-state">加载中...</div>';
       
       try {
         const res = await fetch(`/api/bot/list?userId=${currentUser.userId}`);
         const data = await res.json();
         
-        if (!data.success) {
-          throw new Error(data.error || '加载失败');
-        }
+        if (!data.success) throw new Error(data.error || '加载失败');
         
         if (data.bots.length === 0) {
           botList.innerHTML = '<div class="empty-state">还没有创建 Bot，点击右上角"创建 Bot"按钮开始</div>';
           return;
         }
         
+        // 渲染 bot 卡片（初始状态：检测中）
         botList.innerHTML = data.bots.map(bot => `
           <div class="bot-item" id="bot-item-${bot.bot_id}">
             <div class="bot-item-header">
@@ -2062,17 +1991,78 @@
                 <div class="bot-meta">${bot.description || '无备注'} · 创建于 ${new Date(bot.created_at).toLocaleDateString('zh-CN')}</div>
               </div>
               <div class="bot-actions">
-                <span class="bot-status-badge disconnected" id="badge-${bot.bot_id}">● 未连接</span>
-                <button class="control-btn connect-btn" id="connect-btn-${bot.bot_id}" onclick="connectBot('${bot.bot_id}')">🔌 连接</button>
+                <span class="bot-status-badge checking" id="badge-${bot.bot_id}">● 检测中</span>
                 <button class="control-btn refresh" onclick="showBotDetail('${bot.bot_id}')">📋 管理</button>
               </div>
             </div>
-            <div class="bot-connect-detail" id="detail-${bot.bot_id}" style="display:none;"></div>
+            <div class="bot-connect-detail" id="detail-${bot.bot_id}"></div>
           </div>
         `).join('');
         
+        // 并发检测每个 bot 的连接状态
+        data.bots.forEach(bot => checkBotStatus(bot.bot_id));
+        
       } catch (err) {
         botList.innerHTML = `<div class="empty-state">加载失败: ${err.message}</div>`;
+      }
+    }
+
+    // 检测单个 bot 的连接状态并更新 UI
+    async function checkBotStatus(botId) {
+      const badge = document.getElementById(`badge-${botId}`);
+      const detail = document.getElementById(`detail-${botId}`);
+      if (!badge || !detail) return;
+
+      try {
+        const res = await fetch(`/api/bot/status?botId=${botId}`, {
+          headers: { 'x-camp-key': currentUser.campKey }
+        });
+        const data = await res.json();
+
+        if (data.connected && data.agent) {
+          const agent = data.agent;
+          badge.className = 'bot-status-badge connected';
+          badge.textContent = '● 在线';
+
+          let totalTokens = 0;
+          if (agent.sessions) agent.sessions.forEach(s => totalTokens += (s.tokens || 0));
+
+          detail.innerHTML = `
+            <div class="agent-connect-info">
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">Agent 名称</span>
+                <span class="agent-connect-value">${agent.name}</span>
+              </div>
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">版本</span>
+                <span class="agent-connect-value">v${agent.agentVersion || 'N/A'}</span>
+              </div>
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">主机</span>
+                <span class="agent-connect-value">${agent.host || 'N/A'}</span>
+              </div>
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">活跃会话</span>
+                <span class="agent-connect-value">${agent.sessions?.length || 0} 个</span>
+              </div>
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">今日 Token</span>
+                <span class="agent-connect-value">${totalTokens > 0 ? (totalTokens / 1000).toFixed(1) + 'K' : '0'}</span>
+              </div>
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">最后心跳</span>
+                <span class="agent-connect-value">${new Date(agent.lastSeen).toLocaleTimeString('zh-CN')}</span>
+              </div>
+            </div>
+          `;
+        } else {
+          badge.className = 'bot-status-badge disconnected';
+          badge.textContent = '● 离线';
+          detail.innerHTML = '';
+        }
+      } catch (e) {
+        if (badge) { badge.className = 'bot-status-badge disconnected'; badge.textContent = '● 离线'; }
+        if (detail) detail.innerHTML = '';
       }
     }
     
@@ -2135,99 +2125,6 @@
     
     // 显示 Bot 详情
     // 连接验证：检查该 bot 是否有 agent 在线
-    async function connectBot(botId) {
-      const btn = document.getElementById(`connect-btn-${botId}`);
-      const badge = document.getElementById(`badge-${botId}`);
-      const detail = document.getElementById(`detail-${botId}`);
-
-      btn.disabled = true;
-      btn.textContent = '⏳ 验证中...';
-      badge.className = 'bot-status-badge checking';
-      badge.textContent = '● 验证中';
-
-      try {
-        const res = await fetch(`/api/bot/status?botId=${botId}`, {
-          headers: { 'x-camp-key': currentUser.campKey }
-        });
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || '验证失败');
-
-        if (data.connected && data.agent) {
-          const agent = data.agent;
-          badge.className = 'bot-status-badge connected';
-          badge.textContent = '● 已连接';
-          btn.textContent = '🔄 刷新';
-          btn.disabled = false;
-
-          // 计算 token 统计
-          let totalTokens = 0;
-          if (agent.sessions) {
-            agent.sessions.forEach(s => totalTokens += (s.tokens || 0));
-          }
-
-          detail.style.display = 'block';
-          detail.innerHTML = `
-            <div class="agent-connect-info">
-              <div class="agent-connect-row">
-                <span class="agent-connect-label">Agent 名称</span>
-                <span class="agent-connect-value">${agent.name}</span>
-              </div>
-              <div class="agent-connect-row">
-                <span class="agent-connect-label">运行版本</span>
-                <span class="agent-connect-value">v${agent.agentVersion || 'N/A'}</span>
-              </div>
-              <div class="agent-connect-row">
-                <span class="agent-connect-label">主机地址</span>
-                <span class="agent-connect-value">${agent.host || 'N/A'}</span>
-              </div>
-              <div class="agent-connect-row">
-                <span class="agent-connect-label">活跃会话</span>
-                <span class="agent-connect-value">${agent.sessions?.length || 0} 个</span>
-              </div>
-              <div class="agent-connect-row">
-                <span class="agent-connect-label">今日 Token</span>
-                <span class="agent-connect-value">${totalTokens > 0 ? (totalTokens / 1000).toFixed(1) + 'K' : '0'}</span>
-              </div>
-              <div class="agent-connect-row">
-                <span class="agent-connect-label">最后心跳</span>
-                <span class="agent-connect-value">${new Date(agent.lastSeen).toLocaleTimeString('zh-CN')}</span>
-              </div>
-            </div>
-          `;
-        } else {
-          badge.className = 'bot-status-badge disconnected';
-          badge.textContent = '● 未连接';
-          btn.textContent = '🔌 连接';
-          btn.disabled = false;
-          detail.style.display = 'block';
-          detail.innerHTML = `
-            <div class="agent-connect-info not-connected">
-              <p>⚠️ 未检测到使用此 Bot 的 Agent</p>
-              <p>请确认你的 OpenClaw 配置中 <code>claw-camp</code> channel 使用了正确的 botId 和 botToken。</p>
-              <pre class="connect-hint">"channels": {
-  "claw-camp": {
-    "accounts": {
-      "default": {
-        "botId": "${botId}",
-        "botToken": "your-bot-token"
-      }
-    }
-  }
-}</pre>
-            </div>
-          `;
-        }
-      } catch (e) {
-        badge.className = 'bot-status-badge disconnected';
-        badge.textContent = '● 错误';
-        btn.textContent = '🔌 连接';
-        btn.disabled = false;
-        detail.style.display = 'block';
-        detail.innerHTML = `<div class="agent-connect-info not-connected">❌ ${e.message}</div>`;
-      }
-    }
-
     async function showBotDetail(botId) {
       try {
         const res = await fetch(`/api/bot/detail?botId=${botId}&userId=${currentUser.userId}`);
