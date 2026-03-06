@@ -147,6 +147,57 @@ async function createTables() {
         INDEX idx_updated (updated_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+
+    // 聊天相关表
+    // 会话表
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        conversation_id VARCHAR(64) UNIQUE NOT NULL,
+        type ENUM('direct', 'group', 'bot') NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        created_by VARCHAR(32),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE,
+        INDEX idx_conversation_id (conversation_id),
+        INDEX idx_created_by (created_by)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // 会话成员表
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS conversation_members (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        conversation_id VARCHAR(64) NOT NULL,
+        user_id VARCHAR(32) NOT NULL,
+        role ENUM('owner', 'admin', 'member') DEFAULT 'member',
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_read_at TIMESTAMP NULL,
+        UNIQUE KEY uk_conversation_user (conversation_id, user_id),
+        INDEX idx_user_id (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
+    // 消息表
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        message_id VARCHAR(64) UNIQUE NOT NULL,
+        conversation_id VARCHAR(64) NOT NULL,
+        sender_id VARCHAR(32) NOT NULL,
+        sender_type ENUM('user', 'bot', 'system') NOT NULL,
+        content TEXT NOT NULL,
+        message_type ENUM('text', 'image', 'file', 'system') DEFAULT 'text',
+        reply_to VARCHAR(64),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_deleted BOOLEAN DEFAULT FALSE,
+        INDEX idx_message_id (message_id),
+        INDEX idx_conversation_id (conversation_id),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
   } catch (e) {
     console.error('[DB] 创建表失败:', e.message);
   }
@@ -182,12 +233,12 @@ async function saveTokenUsage(agentId, agentName, tokenUsage) {
   try {
     const now = Date.now();
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    
+
     for (const slot of tokenUsage) {
       // 用 date + slot 作为唯一标识
       const slotId = `${today}:${slot.slot}`;
       await pool.query(
-        `INSERT INTO token_usage 
+        `INSERT INTO token_usage
          (agent_id, agent_name, date, time_slot, input_tokens, output_tokens, cache_read, net_tokens, message_count, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
@@ -203,6 +254,166 @@ async function saveTokenUsage(agentId, agentName, tokenUsage) {
   } catch (e) {
     console.error('[DB] 存储 token 使用失败:', e.message);
   }
+}
+
+/**
+ * Bot 智能回复生成
+ * 调用 LLM API 生成回复，并推送给用户
+ */
+async function generateBotReply(conversationId, botId, userMessage) {
+  if (!pool) return;
+
+  try {
+    // 获取 Bot 信息
+    const [bots] = await pool.query(
+      'SELECT name FROM bots WHERE bot_id = ? AND is_active = TRUE',
+      [botId]
+    );
+    const botName = bots[0]?.name || 'AI 助手';
+
+    // 获取对话历史（最近 10 条）
+    const [history] = await pool.query(
+      `SELECT sender_id, content, sender_type FROM messages
+       WHERE conversation_id = ? AND is_deleted = FALSE
+       ORDER BY created_at DESC LIMIT 10`,
+      [conversationId]
+    );
+
+    // 构建对话上下文
+    const messages = history.reverse().map(m => ({
+      role: m.sender_type === 'bot' ? 'assistant' : 'user',
+      content: m.content
+    }));
+
+    // 添加系统提示
+    messages.unshift({
+      role: 'system',
+      content: `你是${botName}，一个友好的 AI 助手。请简洁、专业地回答用户的问题。`
+    });
+
+    // 调用 LLM API（使用智谱 AI GLM-4 Flash）
+    const https = require('https');
+    const llmApiKey = process.env.ZHIPU_API_KEY;
+
+    let botReply = '抱歉，我现在有点忙，稍后回复你。';
+
+    if (llmApiKey) {
+      try {
+        const response = await new Promise((resolve, reject) => {
+          const postData = JSON.stringify({
+            model: 'glm-4-flash',
+            messages: messages,
+            max_tokens: 1024,
+            temperature: 0.7
+          });
+
+          const req = https.request({
+            hostname: 'open.bigmodel.cn',
+            port: 443,
+            path: '/api/paas/v4/chat/completions',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${llmApiKey}`
+            }
+          }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              try {
+                resolve(JSON.parse(data));
+              } catch (e) {
+                reject(e);
+              }
+            });
+          });
+
+          req.on('error', reject);
+          req.write(postData);
+          req.end();
+        });
+
+        if (response.choices && response.choices[0]?.message?.content) {
+          botReply = response.choices[0].message.content.trim();
+        }
+      } catch (e) {
+        console.error('[Bot] LLM 调用失败:', e.message);
+      }
+    } else {
+      // 没有配置 API Key，使用简单回复
+      botReply = generateSimpleReply(userMessage, botName);
+    }
+
+    // 保存 Bot 回复到数据库
+    const crypto = require('crypto');
+    const replyId = 'msg_' + crypto.randomBytes(8).toString('hex');
+    await pool.query(
+      'INSERT INTO messages (message_id, conversation_id, sender_id, sender_type, content, message_type) VALUES (?, ?, ?, ?, ?, ?)',
+      [replyId, conversationId, botId, 'bot', botReply, 'text']
+    );
+
+    // 获取保存的消息
+    const [savedMessages] = await pool.query('SELECT * FROM messages WHERE message_id = ?', [replyId]);
+    const savedReply = savedMessages[0];
+
+    // 通过 WebSocket 推送给用户
+    broadcastChatMessage(conversationId, savedReply);
+
+    console.log(`[Bot] ${botName} 已回复会话 ${conversationId}`);
+
+  } catch (e) {
+    console.error('[Bot] 生成回复失败:', e.message);
+  }
+}
+
+/**
+ * 简单回复（无 LLM API 时的降级方案）
+ */
+function generateSimpleReply(userMessage, botName) {
+  const msg = userMessage.toLowerCase();
+
+  if (msg.includes('你好') || msg.includes('hi') || msg.includes('hello')) {
+    return `你好！我是${botName}，有什么可以帮你的吗？`;
+  }
+
+  if (msg.includes('名字') || msg.includes('是谁')) {
+    return `我是${botName}，你的 AI 助手！`;
+  }
+
+  if (msg.includes('谢谢') || msg.includes('感谢')) {
+    return '不客气！有需要随时找我～';
+  }
+
+  if (msg.includes('再见') || msg.includes('拜拜')) {
+    return '再见！期待下次聊天～ 👋';
+  }
+
+  // 默认回复
+  const replies = [
+    '我收到你的消息了！不过现在还在学习中，暂时只能简单回复。请稍后再来找我聊天吧～',
+    '嗯嗯，我在听！不过我的智能回复功能还在完善中，感谢你的理解！',
+    '好的，收到！我现在还比较笨，但会越来越聪明的～'
+  ];
+  return replies[Math.floor(Math.random() * replies.length)];
+}
+
+/**
+ * 广播聊天消息给所有客户端
+ */
+function broadcastChatMessage(conversationId, message) {
+  const data = JSON.stringify({
+    type: 'chat-message',
+    payload: {
+      conversationId,
+      ...message
+    }
+  });
+
+  clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
 }
 
 /**
@@ -1098,6 +1309,55 @@ const server = http.createServer((req, res) => {
   }
 
   // ──────────────────────────────────────────────
+  // 用户搜索 API
+  // ──────────────────────────────────────────────
+
+  // GET /api/users/search?q=keyword
+  if (req.url.startsWith('/api/users/search') && req.method === 'GET') {
+    (async () => {
+      try {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const query = url.searchParams.get('q');
+        const campKey = req.headers['x-camp-key'];
+
+        // 验证身份
+        const [users] = await pool.query(
+          'SELECT user_id FROM users WHERE camp_key = ? AND is_active = TRUE',
+          [campKey]
+        );
+        if (!users.length) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: '未授权' }));
+          return;
+        }
+
+        if (!query || query.length < 2) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, users: [] }));
+          return;
+        }
+
+        // 搜索用户（模糊匹配用户名）
+        const [results] = await pool.query(
+          `SELECT user_id, username, created_at FROM users
+           WHERE username LIKE ? AND is_active = TRUE AND user_id != ?
+           ORDER BY username ASC
+           LIMIT 20`,
+          [`%${query}%`, users[0].user_id]
+        );
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, users: results }));
+      } catch (e) {
+        console.error('[Users] 搜索失败:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: '搜索失败' }));
+      }
+    })();
+    return;
+  }
+
+  // ──────────────────────────────────────────────
   // 聊天 API
   // ──────────────────────────────────────────────
 
@@ -1224,7 +1484,7 @@ const server = http.createServer((req, res) => {
       try {
         const { conversationId, content, messageType = 'text', replyTo } = JSON.parse(body);
         const campKey = req.headers['x-camp-key'];
-        
+
         const [users] = await pool.query(
           'SELECT user_id, username FROM users WHERE camp_key = ? AND is_active = TRUE',
           [campKey]
@@ -1235,7 +1495,7 @@ const server = http.createServer((req, res) => {
           return;
         }
         const userId = users[0].user_id;
-        
+
         const [members] = await pool.query(
           'SELECT * FROM conversation_members WHERE conversation_id = ? AND user_id = ?',
           [conversationId, userId]
@@ -1245,17 +1505,44 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify({ error: '无权发送消息' }));
           return;
         }
-        
+
+        // 获取会话信息
+        const [convs] = await pool.query(
+          'SELECT * FROM conversations WHERE conversation_id = ? AND is_active = TRUE',
+          [conversationId]
+        );
+        const conversation = convs[0];
+
         const crypto = require('crypto');
         const messageId = 'msg_' + crypto.randomBytes(8).toString('hex');
         await pool.query(
           'INSERT INTO messages (message_id, conversation_id, sender_id, sender_type, content, message_type, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [messageId, conversationId, userId, 'user', content, messageType, replyTo || null]
         );
-        
+
         const [messages] = await pool.query('SELECT * FROM messages WHERE message_id = ?', [messageId]);
+        const savedMessage = messages[0];
+
+        // 返回响应
         res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message: messages[0] }));
+        res.end(JSON.stringify({ success: true, message: savedMessage }));
+
+        // 如果是 Bot 会话，触发 Bot 回复（异步）
+        if (conversation && conversation.type === 'bot') {
+          // 获取会话中的 Bot ID
+          const [botMembers] = await pool.query(
+            'SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id LIKE "bot_%"',
+            [conversationId]
+          );
+
+          if (botMembers.length > 0) {
+            const botId = botMembers[0].user_id;
+            // 异步生成 Bot 回复
+            generateBotReply(conversationId, botId, content).catch(e => {
+              console.error('[Bot] 回复失败:', e.message);
+            });
+          }
+        }
       } catch (e) {
         console.error('[Chat] 发送消息失败:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
