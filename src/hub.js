@@ -306,8 +306,11 @@ async function doUpdate() {
   const projectDir = path.join(__dirname, '..');
   
   return new Promise((resolve, reject) => {
-    // git pull
-    exec('git pull', { cwd: projectDir, timeout: 30000 }, (err, stdout, stderr) => {
+    // 先 reset 清除本地改动，再 pull
+    exec('git reset --hard HEAD && git clean -fd', { cwd: projectDir, timeout: 10000 }, () => {
+      // 忽略 reset 错误，继续 pull
+    });
+    exec('git fetch origin && git reset --hard origin/main', { cwd: projectDir, timeout: 30000 }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(`Git pull failed: ${stderr}`));
         return;
@@ -337,8 +340,11 @@ async function doUpdate() {
       
       // 3秒后重启（给响应时间）
       setTimeout(() => {
-        console.log('[Hub] 更新完成，正在重启...');
-        process.exit(0);  // 退出，由进程管理器重启
+        console.log('[Hub] 更新完成，部署前端文件...');
+        exec('sudo cp /home/phosa_claw/claw-hub/src/frontend/index.html /var/www/camp/index.html', () => {
+          console.log('[Hub] 前端文件已部署，正在重启...');
+          process.exit(0);
+        });
       }, 3000);
     });
   });
