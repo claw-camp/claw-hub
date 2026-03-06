@@ -21,7 +21,7 @@ const path = require('path');
 
 // Agent 信息
 const AGENT_NAME = '龙虾营地 Agent';
-const AGENT_VERSION = '1.12.0';
+const AGENT_VERSION = '1.12.1';
 const GITHUB_REPO = 'https://github.com/PhosAQy/claw-hub';
 
 // 配置
@@ -43,6 +43,7 @@ const CONFIG = {
 
 let ws = null;
 let reconnectTimer = null;
+const startTime = Date.now();  // Agent 启动时间
 
 // 获取主机名
 function getHostname() {
@@ -389,6 +390,7 @@ function reportStatus() {
   const stats = getSystemStats();
   const tokenUsage = getTokenUsage(6);  // 最近 6 小时
   const plugins = getPlugins();  // 获取插件列表
+  const uptime = Math.floor((Date.now() - startTime) / 1000);  // 运行时长（秒）
   
   send({
     type: 'status',
@@ -396,6 +398,8 @@ function reportStatus() {
       id: CONFIG.agentId,
       host: getHostname(),  // 每次上报主机名
       agentVersion: AGENT_VERSION,  // Agent 版本
+      startTime,  // 启动时间戳
+      uptime,     // 运行时长（秒）
       gateway,
       sessions,
       stats,

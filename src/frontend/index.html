@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🦞 龙虾营地 - Claw Hub</title>
+  <title>🦞 龙虾营地 - Claw Hub v1.5.3</title>
   <meta charset="utf-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -1323,9 +1327,8 @@
             <div class="agent-meta-compact">
               ${agent.host || '--'} · 
               ${agent.sessions?.count || 0} 会话 · 
-              ${formatTokens(agent.stats?.todayTokens)} 今日 Token · 
-              CPU ${agent.stats?.cpu?.toFixed(0) || '--'}% · 
-              内存 ${agent.stats?.memory || '--'}%
+              ${formatTokens(agent.stats?.todayTokens || 0)} 今日 Token
+              ${agent.stats?.memory ? ` · 堆内存 ${agent.stats.memory.heapUsed}/${agent.stats.memory.heapTotal}MB · RSS ${agent.stats.memory.rss}MB` : ''}
             </div>
           </div>
           <span class="status-badge ${agent.status}">
@@ -1439,7 +1442,7 @@
       } else {
         expandedAgent = agentId;
       }
-      renderAgentList();  // 展开/收起时需要重新渲染
+      updateAgentsList();  // 展开/收起时需要重新渲染
     }
     
     // 初始化 Agent 图表
@@ -1604,7 +1607,7 @@
         const res = await fetch(`/api/agent/check-update?agent=${agentId}`);
         const data = await res.json();
         agentUpdateInfo[agentId] = data;
-        renderAgentList();  // 更新按钮显示需要重新渲染
+        updateAgentsList();  // 更新按钮显示需要重新渲染
       } catch (e) {
         console.error('[Agent Update] 检查失败:', e);
       }
@@ -2085,6 +2088,22 @@
                 <span class="agent-connect-label">最后心跳</span>
                 <span class="agent-connect-value">${new Date(agent.lastSeen).toLocaleTimeString('zh-CN')}</span>
               </div>
+              ${agent.uptime ? `
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">运行时长</span>
+                <span class="agent-connect-value">${Math.floor(agent.uptime / 3600)}小时${Math.floor((agent.uptime % 3600) / 60)}分</span>
+              </div>
+              ` : ''}
+              ${agent.stats?.memory ? `
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">堆内存</span>
+                <span class="agent-connect-value">${agent.stats.memory.heapUsed}/${agent.stats.memory.heapTotal}MB</span>
+              </div>
+              <div class="agent-connect-row">
+                <span class="agent-connect-label">RSS</span>
+                <span class="agent-connect-value">${agent.stats.memory.rss}MB</span>
+              </div>
+              ` : ''}
             </div>
           `;
         } else {
