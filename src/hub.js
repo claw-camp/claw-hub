@@ -10,6 +10,17 @@ const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// 加载 .env 文件（如果存在）
+const envPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  fs.readFileSync(envPath, 'utf-8').split('\n').forEach(line => {
+    const [key, ...vals] = line.split('=');
+    if (key && key.trim() && !key.startsWith('#')) {
+      process.env[key.trim()] = vals.join('=').trim();
+    }
+  });
+}
+
 const PORT = process.env.CLAW_HUB_PORT || 8889;
 const VERSION = require('../package.json').version;
 const GIT_REPO = 'https://github.com/PhosAQy/claw-hub';
