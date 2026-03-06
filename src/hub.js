@@ -1081,7 +1081,12 @@ const server = http.createServer((req, res) => {
         }
       }
 
-      res.writeHead(200, corsHeaders);
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': req.headers.origin || '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, x-camp-key'
+      });
       res.end(JSON.stringify({
         connected: !!connectedAgent,
         agent: connectedAgent
