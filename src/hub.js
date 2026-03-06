@@ -1021,53 +1021,55 @@ const server = http.createServer((req, res) => {
 
   // GET /api/bot/status?botId=xxx — 检查 bot 是否有 agent 在线
   if (req.url.startsWith('/api/bot/status') && req.method === 'GET') {
-    const url = new URL(req.url, 'http://localhost');
-    const botId = url.searchParams.get('botId');
-    const campKey = req.headers['x-camp-key'];
+    (async () => {
+      const url = new URL(req.url, 'http://localhost');
+      const botId = url.searchParams.get('botId');
+      const campKey = req.headers['x-camp-key'];
 
-    if (!botId || !campKey) {
-      res.writeHead(400); res.end(JSON.stringify({ error: 'missing botId or auth' })); return;
-    }
-
-    // 验证用户身份
-    const [users] = await pool.execute('SELECT id FROM users WHERE camp_key = ? AND is_active = 1', [campKey]);
-    if (!users.length) {
-      res.writeHead(401); res.end(JSON.stringify({ error: 'unauthorized' })); return;
-    }
-    const userId = users[0].id;
-
-    // 验证该 bot 属于该用户
-    const [bots] = await pool.execute(
-      'SELECT bot_id, name FROM bots WHERE bot_id = ? AND user_id = ? AND is_active = 1',
-      [botId, userId]
-    );
-    if (!bots.length) {
-      res.writeHead(403); res.end(JSON.stringify({ error: 'bot not found' })); return;
-    }
-
-    // 查找是否有该 bot 的 agent 在线
-    let connectedAgent = null;
-    for (const [, agent] of agents) {
-      if (agent.botId === botId && agent.status === 'online') {
-        connectedAgent = {
-          id: agent.id,
-          name: agent.name,
-          host: agent.host,
-          agentVersion: agent.agentVersion,
-          status: agent.status,
-          lastSeen: agent.lastSeen,
-          sessions: agent.sessions || [],
-          stats: agent.stats
-        };
-        break;
+      if (!botId || !campKey) {
+        res.writeHead(400); res.end(JSON.stringify({ error: 'missing botId or auth' })); return;
       }
-    }
 
-    res.writeHead(200, corsHeaders);
-    res.end(JSON.stringify({
-      connected: !!connectedAgent,
-      agent: connectedAgent
-    }));
+      // 验证用户身份
+      const [users] = await pool.execute('SELECT id FROM users WHERE camp_key = ? AND is_active = 1', [campKey]);
+      if (!users.length) {
+        res.writeHead(401); res.end(JSON.stringify({ error: 'unauthorized' })); return;
+      }
+      const userId = users[0].id;
+
+      // 验证该 bot 属于该用户
+      const [bots] = await pool.execute(
+        'SELECT bot_id, name FROM bots WHERE bot_id = ? AND user_id = ? AND is_active = 1',
+        [botId, userId]
+      );
+      if (!bots.length) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'bot not found' })); return;
+      }
+
+      // 查找是否有该 bot 的 agent 在线
+      let connectedAgent = null;
+      for (const [, agent] of agents) {
+        if (agent.botId === botId && agent.status === 'online') {
+          connectedAgent = {
+            id: agent.id,
+            name: agent.name,
+            host: agent.host,
+            agentVersion: agent.agentVersion,
+            status: agent.status,
+            lastSeen: agent.lastSeen,
+            sessions: agent.sessions || [],
+            stats: agent.stats
+          };
+          break;
+        }
+      }
+
+      res.writeHead(200, corsHeaders);
+      res.end(JSON.stringify({
+        connected: !!connectedAgent,
+        agent: connectedAgent
+      }));
+    })();
     return;
   }
 
