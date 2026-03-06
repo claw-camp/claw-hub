@@ -9,6 +9,7 @@ const mysql = require('mysql2/promise');
 const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { registerChatRoutes } = require('./chat-routes');
 
 // 加载 .env 文件（如果存在）
 const envPath = path.join(__dirname, '..', '.env');
@@ -1264,6 +1265,11 @@ setInterval(() => {
 
 async function start() {
   await initDB();
+  
+  // 注册聊天路由
+  registerChatRoutes(server, pool, agents);
+  console.log('[Chat] 聊天路由已注册');
+  
   server.listen(PORT, () => {
     console.log(`🦞 龙虾营地 Hub`);
     console.log(`   WebSocket: ws://localhost:${PORT}`);
