@@ -2970,10 +2970,22 @@
           if (msg.type === 'chat-message' && currentConversation) {
             // 收到新消息
             if (msg.payload.conversationId === currentConversation.conversation_id) {
-              appendMessage(msg.payload);
+              // 检查消息是否已存在（避免重复）
+              const container = document.getElementById('messagesContainer');
+              const existingMsg = container.querySelector(`[data-message-id="${msg.payload.message_id}"]`);
+              
+              if (!existingMsg) {
+                appendMessage(msg.payload);
+              }
             }
             // 刷新会话列表
             loadConversations();
+          } else if (msg.type === 'message-recalled') {
+            // 消息撤回通知
+            handleRecallNotification(msg.payload);
+          } else if (msg.type === 'message-read') {
+            // 已读通知
+            handleReadNotification(msg.payload);
           }
         } catch (e) {
           console.error('[Chat WS] 解析失败:', e);
@@ -2999,14 +3011,46 @@
       const isSent = msg.sender_id === currentUser.userId;
       const time = new Date(msg.created_at || Date.now()).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
-      container.innerHTML += `
-        <div class="message-bubble ${isSent ? 'sent' : 'received'}">
-          ${escapeHtml(msg.content)}
-          <div class="time">${time}</div>
-        </div>
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
+      messageDiv.setAttribute('data-message-id', msg.message_id);
+      messageDiv.innerHTML = `
+        ${escapeHtml(msg.content)}
+        <div class="time">${time}</div>
       `;
 
+      container.appendChild(messageDiv);
       container.scrollTop = container.scrollHeight;
+    }
+
+    // 处理消息撤回通知
+    function handleRecallNotification(payload) {
+      const container = document.getElementById('messagesContainer');
+      const messageDiv = container.querySelector(`[data-message-id="${payload.messageId}"]`);
+      
+      if (messageDiv) {
+        // 替换为撤回提示
+        messageDiv.className = 'message-bubble recalled';
+        messageDiv.innerHTML = '<em>消息已撤回</em>';
+      }
+    }
+
+    // 处理已读通知
+    function handleReadNotification(payload) {
+      const container = document.getElementById('messagesContainer');
+      const messageDiv = container.querySelector(`[data-message-id="${payload.message_id}"]`);
+      
+      if (messageDiv && payload.user_id !== currentUser.userId) {
+        // 添加已读标记
+        let readMark = messageDiv.querySelector('.read-mark');
+        if (!readMark) {
+          readMark = document.createElement('div');
+          readMark.className = 'read-mark';
+          readMark.style.cssText = 'font-size: 12px; color: #999; margin-top: 4px;';
+          messageDiv.appendChild(readMark);
+        }
+        readMark.textContent = '✓✓ 已读';
+      }
     }
 
     // 显示新对话弹窗
