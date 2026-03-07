@@ -221,6 +221,11 @@ function registerChatRoutes(server, pool, agents) {
         );
         const message = messages[0];
         
+        // 实时广播消息给所有客户端（用户聊天也需要实时推送）
+        if (global.broadcastChatMessage && message) {
+          global.broadcastChatMessage(conversationId, message);
+        }
+        
         // 获取会话类型
         const [convs] = await pool.query(
           'SELECT type FROM conversations WHERE conversation_id = ?',
