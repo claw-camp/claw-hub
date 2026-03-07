@@ -1024,88 +1024,6 @@ function registerChatRoutes(server, pool, agents) {
       res.end(JSON.stringify({ error: '上传图片失败' }));
     }
   });
-}
-
-/**
- * 处理机器人回复
- */
-async function handleBotReply(pool, agents, conversationId, botId, userMessage, userId, username) {
-  // 获取 bot 配置
-  const [bots] = await pool.query(
-    'SELECT * FROM bots WHERE bot_id = ? AND is_active = TRUE',
-    [botId]
-  );
-  
-  if (!bots.length) return;
-  
-  const bot = bots[0];
-  
-  // 检查是否有 agent 在线
-  let targetAgent = null;
-  for (const [agentId, agent] of agents) {
-    if (agent.botId === botId && agent.status === 'online') {
-      targetAgent = agent;
-      break;
-    }
-  }
-  
-  // 如果有 agent 在线，通过 WebSocket 转发消息
-  if (targetAgent && targetAgent.ws && targetAgent.ws.readyState === 1) {
-    // 创建 session 标识（模拟飞书场景）
-    const sessionKey = `main:direct:${userId}`;
-    
-    // 生成消息 ID
-    const userMsgId = generateId('msg');
-    
-    // 发送给 Agent
-    const request = {
-      type: 'chat-message',
-      payload: {
-        msgId: userMsgId,
-        sessionKey,
-        conversationId,
-        userId,
-        username,
-        content: userMessage,
-        msgType: 'text',
-        timestamp: Date.now()
-      }
-    };
-    
-    targetAgent.ws.send(JSON.stringify(request));
-    console.log(`[Chat] 已转发消息给 Agent ${targetAgent.id}, session=${sessionKey}`);
-    return;  // 等待 Agent 回复（通过 feishu-reply 或 chat-reply）
-  }
-  
-  // 如果没有 agent 在线，使用简单回复
-  console.log(`[Chat] Bot ${botId} 没有 Agent 在线，使用备用回复`);
-  const reply = `你好 ${username}！我是 ${bot.name}。Agent 当前不在线，请稍后再试。`;
-  
-  // 保存回复消息
-  const messageId = generateId('msg');
-  await pool.query(
-    'INSERT INTO messages (message_id, conversation_id, sender_id, sender_type, content, message_type) VALUES (?, ?, ?, ?, ?, ?)',
-    [messageId, conversationId, botId, 'bot', reply, 'text']
-  );
-  
-  // 获取保存的消息
-  const [messages] = await pool.query(
-    'SELECT * FROM messages WHERE message_id = ?',
-    [messageId]
-  );
-  
-  // 广播给前端
-  if (global.broadcastChatMessage && messages[0]) {
-    global.broadcastChatMessage(conversationId, messages[0]);
-  }
-  
-  console.log(`[Chat] Bot ${botId} 已回复（备用）`);
-}
-
-// ──────────────────────────────────────────────
-// 消息撤回功能
-// ──────────────────────────────────────────────
-
 server.on('request', async (req, res) => {
   if (!req.url.match(/\/api\/chat\/message\/[^/]+$/) || req.method !== 'DELETE') return;
   
@@ -1417,4 +1335,5 @@ server.on('request', async (req, res) => {
   }
 });
 
+}
 module.exports = { registerChatRoutes };
