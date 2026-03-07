@@ -276,8 +276,11 @@ async function saveTokenUsage(agentId, agentName, tokenUsage) {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     for (const slot of tokenUsage) {
-      // 用 date + slot 作为唯一标识
-      const slotId = `${today}:${slot.slot}`;
+      // 兼容两种格式：time-slot 格式 和 session 格式
+      const timeSlot = slot.slot || (slot.updatedAt
+        ? new Date(slot.updatedAt).toTimeString().slice(0, 5)
+        : new Date().toTimeString().slice(0, 5));
+      if (!timeSlot) continue;
       await pool.query(
         `INSERT INTO token_usage
          (agent_id, agent_name, date, time_slot, input_tokens, output_tokens, cache_read, net_tokens, message_count, updated_at)
@@ -289,7 +292,7 @@ async function saveTokenUsage(agentId, agentName, tokenUsage) {
            net_tokens = VALUES(net_tokens),
            message_count = VALUES(message_count),
            updated_at = VALUES(updated_at)`,
-        [agentId, agentName, today, slot.slot, slot.input, slot.output, slot.cacheRead, slot.netTokens, slot.count, now]
+        [agentId, agentName, today, timeSlot, slot.input, slot.output, slot.cacheRead, slot.netTokens, slot.count, now]
       );
     }
   } catch (e) {

@@ -1336,4 +1336,49 @@ server.on('request', async (req, res) => {
 });
 
 }
+async function handleBotReply(pool, agents, conversationId, botId, userMessage, userId, username) {
+  const [bots] = await pool.query(
+    'SELECT * FROM bots WHERE bot_id = ? AND is_active = TRUE',
+    [botId]
+  );
+  if (!bots.length) return;
+  const bot = bots[0];
+
+  // 检查是否有 agent 在线
+  let targetAgent = null;
+  for (const [agentId, agent] of agents) {
+    if (agent.botId === botId && agent.status === 'online') {
+      targetAgent = agent;
+      break;
+    }
+  }
+
+  if (targetAgent && targetAgent.ws && targetAgent.ws.readyState === 1) {
+    const sessionKey = `main:direct:${userId}`;
+    const userMsgId = generateId('msg');
+    targetAgent.ws.send(JSON.stringify({
+      type: 'chat-message',
+      payload: {
+        msgId: userMsgId, sessionKey, conversationId,
+        userId, username, content: userMessage,
+        msgType: 'text', timestamp: Date.now()
+      }
+    }));
+    console.log(`[Chat] 已转发消息给 Agent ${targetAgent.id}`);
+    return;
+  }
+
+  // 无 agent 在线，备用回复
+  const reply = `你好 ${username}！Agent 当前不在线，请稍后再试。`;
+  const messageId = generateId('msg');
+  await pool.query(
+    'INSERT INTO messages (message_id, conversation_id, sender_id, sender_type, content, message_type) VALUES (?, ?, ?, ?, ?, ?)',
+    [messageId, conversationId, botId, 'bot', reply, 'text']
+  );
+  const [msgs] = await pool.query('SELECT * FROM messages WHERE message_id = ?', [messageId]);
+  if (global.broadcastChatMessage && msgs[0]) {
+    global.broadcastChatMessage(conversationId, msgs[0]);
+  }
+}
+
 module.exports = { registerChatRoutes };
