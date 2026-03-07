@@ -205,6 +205,7 @@ async function createTables() {
         reply_to VARCHAR(64),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT FALSE,
+        recalled_at TIMESTAMP NULL,
         INDEX idx_message_id (message_id),
         INDEX idx_conversation_id (conversation_id),
         INDEX idx_created_at (created_at)
