@@ -3450,8 +3450,10 @@
           `;
         }).join('');
 
-        // 滚动到底部
-        container.scrollTop = container.scrollHeight;
+        // 滚动到底部（等 DOM 渲染完成）
+        requestAnimationFrame(() => {
+          container.scrollTop = container.scrollHeight;
+        });
 
       } catch (e) {
         container.innerHTML = `<div class="chat-empty">加载失败: ${e.message}</div>`;
