@@ -10,6 +10,7 @@ const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { registerFeishuRoutes } = require('./feishu-integration');
+const { registerChatRoutes } = require('./chat-routes');
 
 // 加载 .env 文件（如果存在）
 const envPath = path.join(__dirname, '..', '.env');
@@ -1945,6 +1946,9 @@ setInterval(() => {
 
 async function start() {
   await initDB();
+  
+  // 注册聊天路由
+  registerChatRoutes(server, pool, agents);
   
   // 初始化飞书集成
   global.feishuIntegration = registerFeishuRoutes(server, pool, agents, broadcastChatMessage);
