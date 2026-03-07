@@ -34,6 +34,112 @@ OpenClaw Agent 监控系统 - 实时监控 Agent 状态、Token 消耗、Gateway
 - **WebSocket 推送**：实时更新，无需轮询
 - **版本管理**：Hub/Agent 版本显示，支持一键更新
 
+## 🔌 安装 OpenClaw 插件（快速接入）
+
+> 适合已经在用 OpenClaw 的用户，一行命令接入龙虾营地监控。
+
+### 一键安装
+
+```bash
+curl -fsSL https://claw-camp-1307257815.cos.ap-guangzhou.myqcloud.com/agent/install.sh | bash
+```
+
+安装完成后，Agent 文件位于 `~/.openclaw/agents/claw-agent/`。
+
+### 启动 Agent
+
+```bash
+# 前台启动（测试用）
+~/.openclaw/agents/claw-agent/start.sh
+
+# 后台运行
+nohup ~/.openclaw/agents/claw-agent/start.sh > /tmp/claw-agent.log 2>&1 &
+```
+
+**启动成功输出：**
+```
+🦞 龙虾营地 Agent
+   Agent: my-mac (my-mac)
+   营地: ws://server.aigc.sx.cn:8889
+
+🦞 连接营地: ws://server.aigc.sx.cn:8889
+✅ 已连接
+✅ 注册成功: my-mac
+```
+
+### 自定义配置
+
+通过环境变量定制你的 Agent：
+
+```bash
+export CLAW_HUB_URL=ws://server.aigc.sx.cn:8889   # 营地地址（默认）
+export CLAW_AGENT_ID=my-mac                         # Agent ID（默认：主机名）
+export CLAW_AGENT_NAME=我的大龙虾                   # 显示名称（默认：主机名）
+
+~/.openclaw/agents/claw-agent/start.sh
+```
+
+### 开机自启（macOS）
+
+```bash
+# 创建 LaunchAgent plist
+cat > ~/Library/LaunchAgents/ai.openclaw.claw-agent.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.openclaw.claw-agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>~/.openclaw/agents/claw-agent/start.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/claw-agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/claw-agent.error.log</string>
+</dict>
+</plist>
+EOF
+
+# 加载
+launchctl load ~/Library/LaunchAgents/ai.openclaw.claw-agent.plist
+```
+
+### 开机自启（Linux）
+
+```bash
+# 创建 systemd 服务
+cat > ~/.config/systemd/user/claw-agent.service << 'EOF'
+[Unit]
+Description=龙虾营地 Agent
+After=network.target
+
+[Service]
+ExecStart=/bin/bash ~/.openclaw/agents/claw-agent/start.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user enable claw-agent
+systemctl --user start claw-agent
+```
+
+### 验证接入
+
+安装并启动后，访问 [https://camp.aigc.sx.cn](https://camp.aigc.sx.cn) 查看你的 Agent 是否出现在列表中。
+
+---
+
 ## 快速开始
 
 ### 1. 部署 Hub（服务器端）
