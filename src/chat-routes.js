@@ -507,24 +507,45 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
   const bot = bots[0];
   
   // 检查是否有 agent 在线
-  let agentOnline = false;
-  for (const [, agent] of agents) {
+  let targetAgent = null;
+  for (const [agentId, agent] of agents) {
     if (agent.botId === botId && agent.status === 'online') {
-      agentOnline = true;
+      targetAgent = agent;
       break;
     }
   }
   
-  // 如果有 agent 在线，通过 agent 处理
-  if (agentOnline) {
-    // 发送消息到 agent，等待回复
-    // TODO: 实现 WebSocket 消息转发
-    console.log(`[Chat] Bot ${botId} 有 agent 在线，转发消息`);
+  // 如果有 agent 在线，通过 WebSocket 转发消息
+  if (targetAgent && targetAgent.ws && targetAgent.ws.readyState === 1) {
+    // 创建 session 标识（模拟飞书场景）
+    const sessionKey = `main:direct:${userId}`;
+    
+    // 生成消息 ID
+    const userMsgId = generateId('msg');
+    
+    // 发送给 Agent
+    const request = {
+      type: 'chat-message',
+      payload: {
+        msgId: userMsgId,
+        sessionKey,
+        conversationId,
+        userId,
+        username,
+        content: userMessage,
+        msgType: 'text',
+        timestamp: Date.now()
+      }
+    };
+    
+    targetAgent.ws.send(JSON.stringify(request));
+    console.log(`[Chat] 已转发消息给 Agent ${targetAgent.id}, session=${sessionKey}`);
+    return;  // 等待 Agent 回复（通过 feishu-reply 或 chat-reply）
   }
   
-  // 否则使用简单回复（或调用 LLM API）
-  // 这里先实现一个简单的 echo 回复
-  const reply = `你好 ${username}！我是 ${bot.name}。你刚才说："${userMessage}"`;
+  // 如果没有 agent 在线，使用简单回复
+  console.log(`[Chat] Bot ${botId} 没有 Agent 在线，使用备用回复`);
+  const reply = `你好 ${username}！我是 ${bot.name}。Agent 当前不在线，请稍后再试。`;
   
   // 保存回复消息
   const messageId = generateId('msg');
@@ -533,7 +554,18 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
     [messageId, conversationId, botId, 'bot', reply, 'text']
   );
   
-  console.log(`[Chat] Bot ${botId} 已回复`);
+  // 获取保存的消息
+  const [messages] = await pool.query(
+    'SELECT * FROM messages WHERE message_id = ?',
+    [messageId]
+  );
+  
+  // 广播给前端
+  if (global.broadcastChatMessage && messages[0]) {
+    global.broadcastChatMessage(conversationId, messages[0]);
+  }
+  
+  console.log(`[Chat] Bot ${botId} 已回复（备用）`);
 }
 
 module.exports = { registerChatRoutes };

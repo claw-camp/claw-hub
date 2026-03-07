@@ -9,6 +9,7 @@ const mysql = require('mysql2/promise');
 const { execSync, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { registerFeishuRoutes } = require('./feishu-integration');
 
 // 加载 .env 文件（如果存在）
 const envPath = path.join(__dirname, '..', '.env');
@@ -25,6 +26,18 @@ const PORT = process.env.CLAW_HUB_PORT || 8889;
 const VERSION = require('../package.json').version;
 const GIT_REPO = 'https://github.com/PhosAQy/claw-hub';
 const UPDATE_TOKEN = process.env.CLAW_UPDATE_TOKEN || 'claw-hub-2026';
+
+/**
+ * 生成唯一 ID
+ */
+function generateId(prefix = '') {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let str = '';
+  for (let i = 0; i < 16; i++) {
+    str += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return prefix ? `${prefix}_${str}` : str;
+}
 
 // 数据库配置 - 从环境变量读取
 const DB_CONFIG = {
@@ -1811,6 +1824,49 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
         res.end(JSON.stringify(payload));
       }
       break;
+    
+    case 'feishu-reply':
+      // Agent 回复飞书消息
+      if (global.feishuIntegration) {
+        global.feishuIntegration.handleAgentReply(msg);
+      }
+      break;
+    
+    case 'chat-reply':
+      // Agent 回复聊天消息
+      (async () => {
+        const { msgId, reply, conversationId, sessionKey } = payload;
+        
+        console.log(`[Hub] 收到 Agent 回复: session=${sessionKey}, conv=${conversationId}`);
+        
+        // 保存回复到数据库
+        if (pool && conversationId && reply) {
+          try {
+            const replyMsgId = generateId('msg');
+            const agentId = sessionKey?.split(':')[0] || 'bot';
+            
+            await pool.query(
+              'INSERT INTO messages (message_id, conversation_id, sender_id, sender_type, content, message_type) VALUES (?, ?, ?, ?, ?, ?)',
+              [replyMsgId, conversationId, agentId, 'bot', reply, 'text']
+            );
+            
+            // 获取保存的消息
+            const [messages] = await pool.query(
+              'SELECT * FROM messages WHERE message_id = ?',
+              [replyMsgId]
+            );
+            
+            // 广播给前端
+            if (messages[0] && global.broadcastChatMessage) {
+              global.broadcastChatMessage(conversationId, messages[0]);
+              console.log(`[Hub] Agent 回复已广播: ${replyMsgId}`);
+            }
+          } catch (e) {
+            console.error('[Hub] 保存 Agent 回复失败:', e.message);
+          }
+        }
+      })();
+      break;
   }
 }
 
@@ -1843,6 +1899,13 @@ setInterval(() => {
 
 async function start() {
   await initDB();
+  
+  // 初始化飞书集成
+  global.feishuIntegration = registerFeishuRoutes(server, pool, agents, broadcastChatMessage);
+  
+  // 暴露 broadcastChatMessage 供 chat-routes 使用
+  global.broadcastChatMessage = broadcastChatMessage;
+  
   server.listen(PORT, () => {
     console.log(`🦞 龙虾营地 Hub`);
     console.log(`   WebSocket: ws://localhost:${PORT}`);
