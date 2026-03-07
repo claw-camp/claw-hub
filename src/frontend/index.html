@@ -3214,7 +3214,10 @@
       `;
 
       container.appendChild(messageDiv);
-      container.scrollTop = container.scrollHeight;
+      // 等 DOM 渲染后再滚动
+      requestAnimationFrame(() => {
+        messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      });
     }
 
     // 处理消息撤回通知
