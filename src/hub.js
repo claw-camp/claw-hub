@@ -1371,16 +1371,39 @@ wss.on('connection', (ws, req) => {
   const connAgentId = connUrl.searchParams.get('agentId');
 
   ws.on('message', (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      if (msg.type === 'subscribe') {
-        clients.add(ws);
-        ws.send(JSON.stringify({ type: 'agents', payload: getAgentList() }));
-        return;
-      }
-      isAgent = true;
-      handleMessage(ws, msg, id => { agentId = id; }, connToken, connAgentId);
-    } catch (e) { console.error('[Hub] 解析失败:', e.message); }
+    (async () => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'subscribe') {
+          // 尝试关联用户身份（用于在线状态检测）
+          if (msg.campKey && pool) {
+            try {
+              const [users] = await pool.query(
+                'SELECT user_id FROM users WHERE camp_key = ? AND is_active = TRUE',
+                [msg.campKey]
+              );
+              if (users.length) ws.userId = users[0].user_id;
+            } catch (e) { /* 忽略，不影响主流程 */ }
+          }
+          clients.add(ws);
+          ws.send(JSON.stringify({ type: 'agents', payload: getAgentList() }));
+          return;
+        }
+        // 消息送达回执
+        if (msg.type === 'message-delivered') {
+          const { messageId, conversationId } = msg;
+          if (messageId && conversationId) {
+            broadcastChatEvent(conversationId, {
+              type: 'message-delivered',
+              payload: { messageId, conversationId, deliveredBy: ws.userId }
+            });
+          }
+          return;
+        }
+        isAgent = true;
+        handleMessage(ws, msg, id => { agentId = id; }, connToken, connAgentId);
+      } catch (e) { console.error('[Hub] 解析失败:', e.message); }
+    })();
   });
 
   ws.on('close', () => {
@@ -1585,15 +1608,24 @@ setInterval(() => {
 async function start() {
   await initDB();
   
+  // 增加监听器上限（chat-routes + feishu-routes 会注册多个 request 监听器）
+  server.setMaxListeners(30);
+  
   // 注册聊天路由
   registerChatRoutes(server, pool, agents);
   
   // 初始化飞书集成
   global.feishuIntegration = registerFeishuRoutes(server, pool, agents, broadcastChatMessage);
   
-  // 暴露广播函数供 chat-routes 使用
+  // 暴露广播函数和工具函数供 chat-routes 使用
   global.broadcastChatMessage = broadcastChatMessage;
   global.broadcastChatEvent = broadcastChatEvent;
+  global.isUserOnline = (userId) => {
+    for (const client of clients) {
+      if (client.readyState === WebSocket.OPEN && client.userId === userId) return true;
+    }
+    return false;
+  };
   
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {

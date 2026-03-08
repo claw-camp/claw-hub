@@ -1304,6 +1304,30 @@
     .message-bubble.received .time {
       color: #666;
     }
+
+    .msg-status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-left: 5px;
+      vertical-align: middle;
+      border: 1.5px solid rgba(255,255,255,0.6);
+      background: transparent;
+      flex-shrink: 0;
+    }
+    .msg-status-dot.offline {
+      background: #e74c3c;
+      border-color: #e74c3c;
+    }
+    .msg-status-dot.delivered {
+      background: #27ae60;
+      border-color: #27ae60;
+    }
+    .message-bubble.sent .time {
+      display: flex;
+      align-items: center;
+    }
     
     .chat-input {
       padding: 15px 20px;
@@ -3163,7 +3187,7 @@
       chatWs = new WebSocket(wsUrl);
 
       chatWs.onopen = () => {
-        chatWs.send(JSON.stringify({ type: 'subscribe' }));
+        chatWs.send(JSON.stringify({ type: 'subscribe', campKey: currentUser?.campKey }));
       };
 
       chatWs.onmessage = (event) => {
@@ -3175,13 +3199,25 @@
               // 检查消息是否已存在（避免重复）
               const container = document.getElementById('messagesContainer');
               const existingMsg = container.querySelector(`[data-message-id="${msg.payload.message_id}"]`);
-              
+
               if (!existingMsg) {
                 appendMessage(msg.payload);
+              }
+
+              // 如果是对方发来的消息，发送送达回执
+              if (msg.payload.sender_id !== currentUser.userId) {
+                chatWs.send(JSON.stringify({
+                  type: 'message-delivered',
+                  messageId: msg.payload.message_id,
+                  conversationId: msg.payload.conversationId
+                }));
               }
             }
             // 刷新会话列表
             loadConversations();
+          } else if (msg.type === 'message-delivered') {
+            // 送达回执：更新发送方消息的状态圆圈为绿色
+            handleDeliveredNotification(msg.payload);
           } else if (msg.type === 'message-recalled') {
             // 消息撤回通知
             handleRecallNotification(msg.payload);
@@ -3204,6 +3240,16 @@
       };
     }
 
+    // 消息状态暂存：messageId -> 'offline' | 'pending' | 'delivered'
+    const pendingMsgStatus = {};
+
+    // 应用状态圆圈
+    function applyMessageStatus(msgDiv, status) {
+      let dot = msgDiv.querySelector('.msg-status-dot');
+      if (!dot) return;
+      dot.className = 'msg-status-dot' + (status ? ' ' + status : '');
+    }
+
     // 添加消息到界面
     function appendMessage(msg) {
       const container = document.getElementById('messagesContainer');
@@ -3216,16 +3262,39 @@
       const messageDiv = document.createElement('div');
       messageDiv.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
       messageDiv.setAttribute('data-message-id', msg.message_id);
+      const statusDot = isSent && currentConversation?.type === 'direct'
+        ? '<span class="msg-status-dot"></span>'
+        : '';
       messageDiv.innerHTML = `
         ${escapeHtml(msg.content)}
-        <div class="time">${time}</div>
+        <div class="time">${time}${statusDot}</div>
       `;
 
       container.appendChild(messageDiv);
+
+      // 应用待定状态
+      if (isSent && pendingMsgStatus[msg.message_id]) {
+        applyMessageStatus(messageDiv, pendingMsgStatus[msg.message_id]);
+        delete pendingMsgStatus[msg.message_id];
+      }
+
       // 等 DOM 渲染后再滚动
       requestAnimationFrame(() => {
         messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
       });
+    }
+
+    // 处理送达回执：将状态圆圈变为绿色
+    function handleDeliveredNotification(payload) {
+      if (!payload?.messageId) return;
+      const container = document.getElementById('messagesContainer');
+      const messageDiv = container.querySelector(`[data-message-id="${payload.messageId}"]`);
+      if (messageDiv) {
+        applyMessageStatus(messageDiv, 'delivered');
+      } else {
+        // 消息尚未渲染到 DOM，暂存状态
+        pendingMsgStatus[payload.messageId] = 'delivered';
+      }
     }
 
     // 处理消息撤回通知
@@ -3493,8 +3562,18 @@
 
         if (!data.success) throw new Error(data.error);
 
-        // 添加到界面
-        appendMessage(data.message);
+        // 消息由 WebSocket 广播推送到界面，此处仅设置投递状态圆圈
+        if (data.message?.message_id && currentConversation?.type === 'direct') {
+          const initStatus = data.recipientOnline === false ? 'offline' : 'pending';
+          const existingDiv = document.querySelector(`[data-message-id="${data.message.message_id}"]`);
+          if (existingDiv) {
+            // WS 已先到，直接更新
+            applyMessageStatus(existingDiv, initStatus);
+          } else {
+            // WS 尚未到，暂存
+            pendingMsgStatus[data.message.message_id] = initStatus;
+          }
+        }
 
         // 刷新会话列表
         loadConversations();

@@ -402,8 +402,20 @@ function registerChatRoutes(server, pool, agents) {
           }
         }
         
+        // 对于私聊，检查对方是否在线
+        let recipientOnline = null;
+        if (convType === 'direct' && global.isUserOnline) {
+          const [otherMembers] = await pool.query(
+            'SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?',
+            [conversationId, userId]
+          );
+          if (otherMembers.length) {
+            recipientOnline = global.isUserOnline(otherMembers[0].user_id);
+          }
+        }
+
         res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message }));
+        res.end(JSON.stringify({ success: true, message, recipientOnline }));
         
       } catch (e) {
         console.error('[Chat] 发送消息失败:', e.message);
