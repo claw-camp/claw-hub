@@ -2104,7 +2104,7 @@
     // 从 API 拉取历史数据
     async function fetchHistory(agentId) {
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/history?hours=6&agent=${agentId}`);
+        const res = await fetch(`/api/history?hours=6&agent=${agentId}`);
         const data = await res.json();
         
         if (charts[agentId] && data.history) {
@@ -2150,7 +2150,7 @@
     // 获取版本信息
     async function fetchVersion() {
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/version');
+        const res = await fetch('/api/version');
         versionInfo = await res.json();
         const el = document.getElementById('version');
         el.textContent = `v${versionInfo.version}`;
@@ -2173,14 +2173,14 @@
       el.textContent = '更新中...';
       
       try {
-        const tokenRes = await fetch('https://api.clawcamp.chat/api/token');
+        const tokenRes = await fetch('/api/token');
         const tokenData = await tokenRes.json();
         
         if (!tokenData.token) {
           throw new Error('无法获取更新令牌');
         }
         
-        const res = await fetch(`https://api.clawcamp.chat/api/update?token=${encodeURIComponent(tokenData.token)}`);
+        const res = await fetch(`/api/update?token=${encodeURIComponent(tokenData.token)}`);
         const result = await res.json();
         
         if (result.success && result.updated) {
@@ -2200,7 +2200,7 @@
     // 检查 Agent 更新
     async function checkAgentUpdate(agentId) {
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/agent/check-update?agent=${agentId}`);
+        const res = await fetch(`/api/agent/check-update?agent=${agentId}`);
         const data = await res.json();
         agentUpdateInfo[agentId] = data;
         updateAgentsList();  // 更新按钮显示需要重新渲染
@@ -2219,7 +2219,7 @@
       
       if (!confirm(`确定更新 Agent ${agentId} 到 v${updateInfo.latestVersion}？\n\n更新后 Agent 将自动重启。`)) return;
       
-      const tokenRes = await fetch('https://api.clawcamp.chat/api/token');
+      const tokenRes = await fetch('/api/token');
       const tokenData = await tokenRes.json();
       
       if (!tokenData.token) {
@@ -2228,7 +2228,7 @@
       }
       
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/agent/update?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
+        const res = await fetch(`/api/agent/update?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
         const result = await res.json();
         
         if (result.success) {
@@ -2243,11 +2243,11 @@
     
     // Gateway 管理
     async function startGateway(agentId) {
-      const tokenRes = await fetch('https://api.clawcamp.chat/api/token');
+      const tokenRes = await fetch('/api/token');
       const tokenData = await tokenRes.json();
       
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/gateway/start?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
+        const res = await fetch(`/api/gateway/start?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
         const result = await res.json();
         
         if (result.success) {
@@ -2262,11 +2262,11 @@
     }
     
     async function stopGateway(agentId) {
-      const tokenRes = await fetch('https://api.clawcamp.chat/api/token');
+      const tokenRes = await fetch('/api/token');
       const tokenData = await tokenRes.json();
       
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/gateway/stop?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
+        const res = await fetch(`/api/gateway/stop?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
         const result = await res.json();
         
         if (result.success) {
@@ -2284,7 +2284,7 @@
       // 设置完全刷新标志
       needsFullRefresh = true;
       
-      fetch(`https://api.clawcamp.chat/api/gateway/refresh?agent=${agentId}`)
+      fetch(`/api/gateway/refresh?agent=${agentId}`)
         .then(res => res.json())
         .then(result => {
           if (result.success) {
@@ -2330,7 +2330,7 @@
       });
       
       // 获取会话历史
-      fetch(`https://api.clawcamp.chat/api/session/history?agent=${agentId}&session=${encodeURIComponent(sessionKey)}&limit=100`)
+      fetch(`/api/session/history?agent=${agentId}&session=${encodeURIComponent(sessionKey)}&limit=100`)
         .then(res => res.json())
         .then(data => {
           const body = modal.querySelector('.modal-body');
@@ -2571,7 +2571,7 @@
       botList.innerHTML = '<div class="empty-state">加载中...</div>';
       
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/bot/list?userId=${currentUser.userId}`);
+        const res = await fetch(`/api/bot/list?userId=${currentUser.userId}`);
         const data = await res.json();
         
         if (!data.success) throw new Error(data.error || '加载失败');
@@ -2629,7 +2629,7 @@
       detail.innerHTML = '';
 
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/bot/status?botId=${botId}`, {
+        const res = await fetch(`/api/bot/status?botId=${botId}`, {
           headers: { 'x-camp-key': currentUser.campKey }
         });
         const data = await res.json();
@@ -2642,7 +2642,7 @@
           
           // 保存自动连接状态到 DB
           if (saveAutoConnect) {
-            fetch('https://api.clawcamp.chat/api/bot/auto-connect', {
+            fetch('/api/bot/auto-connect', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'x-camp-key': currentUser.campKey },
               body: JSON.stringify({ botId, autoConnect: true })
@@ -2758,7 +2758,7 @@
     
     // 取消自动连接（持久化到 DB）
     function disableAutoConnect(botId) {
-      fetch('https://api.clawcamp.chat/api/bot/auto-connect', {
+      fetch('/api/bot/auto-connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-camp-key': currentUser.campKey },
         body: JSON.stringify({ botId, autoConnect: false })
@@ -2788,10 +2788,10 @@
       if (textEl) textEl.textContent = action === 'restart' ? '重启中...' : (action === 'start' ? '启动中...' : '停止中...');
 
       try {
-        const tokenRes = await fetch('https://api.clawcamp.chat/api/token');
+        const tokenRes = await fetch('/api/token');
         const tokenData = await tokenRes.json();
 
-        const res = await fetch(`https://api.clawcamp.chat/api/gateway/${action}?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
+        const res = await fetch(`/api/gateway/${action}?agent=${agentId}&token=${encodeURIComponent(tokenData.token)}`);
         const result = await res.json();
 
         if (result.success) {
@@ -2820,12 +2820,12 @@
 
       try {
         // 发送 status-request 到 Agent
-        await fetch(`https://api.clawcamp.chat/api/gateway/refresh?agent=${agentId}`);
+        await fetch(`/api/gateway/refresh?agent=${agentId}`);
 
         // 等 1.5 秒后再查询 Agent 状态
         await new Promise(r => setTimeout(r, 1500));
 
-        const res = await fetch(`https://api.clawcamp.chat/api/bot/status?botId=${botId}`, {
+        const res = await fetch(`/api/bot/status?botId=${botId}`, {
           headers: { 'x-camp-key': currentUser?.campKey || '' }
         });
         const data = await res.json();
@@ -2883,7 +2883,7 @@
       }
       
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/bot/create', {
+        const res = await fetch('/api/bot/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2921,7 +2921,7 @@
     // 连接验证：检查该 bot 是否有 agent 在线
     async function showBotDetail(botId) {
       try {
-        const res = await fetch(`https://api.clawcamp.chat/api/bot/detail?botId=${botId}&userId=${currentUser.userId}`);
+        const res = await fetch(`/api/bot/detail?botId=${botId}&userId=${currentUser.userId}`);
         const data = await res.json();
         
         if (!data.success) {
@@ -2989,7 +2989,7 @@
       }
       
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/bot/regenerate-token', {
+        const res = await fetch('/api/bot/regenerate-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3025,7 +3025,7 @@
       }
       
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/bot/delete', {
+        const res = await fetch('/api/bot/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3283,7 +3283,7 @@
 
       searchTimeout = setTimeout(async () => {
         try {
-          const res = await fetch(`https://api.clawcamp.chat/api/users/search?q=${encodeURIComponent(query)}`, {
+          const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
             headers: { 'x-camp-key': currentUser.campKey }
           });
           const data = await res.json();
@@ -3318,7 +3318,7 @@
       hideNewChatModal();
 
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/chat/conversation', {
+        const res = await fetch('/api/chat/conversation', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3365,7 +3365,7 @@
       list.innerHTML = '<div class="empty-state">加载中...</div>';
 
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/chat/conversations', {
+        const res = await fetch('/api/chat/conversations', {
           headers: { 'x-camp-key': currentUser.campKey }
         });
         const data = await res.json();
@@ -3411,7 +3411,7 @@
 
       try {
         // 获取会话信息
-        const convRes = await fetch('https://api.clawcamp.chat/api/chat/conversations', {
+        const convRes = await fetch('/api/chat/conversations', {
           headers: { 'x-camp-key': currentUser.campKey }
         });
         const convData = await convRes.json();
@@ -3427,7 +3427,7 @@
         inputArea.style.display = 'flex';
 
         // 获取消息
-        const msgRes = await fetch(`https://api.clawcamp.chat/api/chat/messages/${conversationId}`, {
+        const msgRes = await fetch(`/api/chat/messages/${conversationId}`, {
           headers: { 'x-camp-key': currentUser.campKey }
         });
         const msgData = await msgRes.json();
@@ -3471,7 +3471,7 @@
       input.style.height = 'auto';
 
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/chat/message', {
+        const res = await fetch('/api/chat/message', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3517,7 +3517,7 @@
 
       if (type === 'bot') {
         // 选择一个 bot
-        const res = await fetch(`https://api.clawcamp.chat/api/bot/list?userId=${currentUser.userId}`);
+        const res = await fetch(`/api/bot/list?userId=${currentUser.userId}`);
         const data = await res.json();
 
         if (!data.bots || data.bots.length === 0) {
@@ -3530,7 +3530,7 @@
       }
 
       try {
-        const res = await fetch('https://api.clawcamp.chat/api/chat/conversation', {
+        const res = await fetch('/api/chat/conversation', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
