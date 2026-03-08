@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🦞 龙虾营地 - Claw Hub v1.7.0</title>
+  <title>🦞 龙虾营地 - Claw Hub v1.7.2</title>
   <meta charset="utf-8">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
@@ -1147,7 +1147,7 @@
     
     .chat-container {
       display: flex;
-      height: calc(100vh - 140px);
+      height: calc(100vh - 120px);
       background: #FFFFFF;
       border-radius: 12px;
       overflow: hidden;
@@ -1230,7 +1230,7 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
-      height: 0; /* 关键：让 flex 子项可以 overflow scroll */
+      overflow: hidden;
     }
     
     .chat-header {
@@ -1373,7 +1373,7 @@
 
     .chat-messages {
       flex: 1;
-      min-height: 0; /* 关键：flex overflow scroll 生效 */
+      min-height: 0;
       overflow-y: auto;
       padding: 20px;
       display: flex;
@@ -1383,6 +1383,7 @@
     }
 
     .chat-input-area {
+      flex-shrink: 0;
       padding: 16px 20px;
       border-top: 1px solid #E0E0E0;
       display: flex;
@@ -3160,6 +3161,10 @@
 
       const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
       chatWs = new WebSocket(wsUrl);
+
+      chatWs.onopen = () => {
+        chatWs.send(JSON.stringify({ type: 'subscribe' }));
+      };
 
       chatWs.onmessage = (event) => {
         try {

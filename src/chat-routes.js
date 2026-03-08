@@ -1354,17 +1354,17 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
   }
 
   if (targetAgent && targetAgent.ws && targetAgent.ws.readyState === 1) {
-    const sessionKey = `main:direct:${userId}`;
+    const sessionKey = `${botId}:direct:${userId}`;
     const userMsgId = generateId('msg');
     targetAgent.ws.send(JSON.stringify({
       type: 'chat-message',
       payload: {
-        msgId: userMsgId, sessionKey, conversationId,
+        msgId: userMsgId, sessionKey, conversationId, botId,
         userId, username, content: userMessage,
         msgType: 'text', timestamp: Date.now()
       }
     }));
-    console.log(`[Chat] 已转发消息给 Agent ${targetAgent.id}`);
+    console.log(`[Chat] 已转发消息给 Agent ${targetAgent.id}, botId=${botId}`);
     return;
   }
 

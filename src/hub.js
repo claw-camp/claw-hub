@@ -925,13 +925,10 @@ const server = http.createServer((req, res) => {
       return;
     }
     
-    // 保存响应回调，等待 Agent 返回
+    // 保存响应回调，等待 Agent 返回（无超时限制）
     const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-    const timeout = setTimeout(() => {
-      pendingRequests.delete(requestId);
-      res.writeHead(504, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Timeout waiting for agent response' }));
-    }, 10000);
+    // 不设置超时，无限等待 Agent 响应
+    const timeout = null;
     
     pendingRequests.set(requestId, { res, timeout });
     
@@ -1421,7 +1418,8 @@ const server = http.createServer((req, res) => {
             uptime: agent.uptime,      // 运行时长（秒）
             startTime: agent.startTime, // 启动时间
             sessions: agent.sessions || [],
-            stats: agent.stats
+            stats: agent.stats,
+            gateway: agent.gateway     // Gateway 状态
           };
           break;
         }
@@ -1642,15 +1640,26 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
     case 'chat-reply':
       // Agent 回复聊天消息
       (async () => {
-        const { msgId, reply, conversationId, sessionKey } = payload;
-        
+        const { msgId, reply, conversationId, sessionKey, botId: payloadBotId } = payload;
+
         console.log(`[Hub] 收到 Agent 回复: session=${sessionKey}, conv=${conversationId}`);
-        
+
+        // 查找发送此回复的 Agent 的 botId
+        let senderBotId = payloadBotId || null;
+        if (!senderBotId) {
+          for (const [, agent] of agents) {
+            if (agent.ws === ws) {
+              senderBotId = agent.botId;
+              break;
+            }
+          }
+        }
+
         // 保存回复到数据库
         if (pool && conversationId && reply) {
           try {
             const replyMsgId = generateId('msg');
-            const agentId = sessionKey?.split(':')[0] || 'bot';
+            const agentId = senderBotId || 'bot';
             
             await pool.query(
               'INSERT INTO messages (message_id, conversation_id, sender_id, sender_type, content, message_type) VALUES (?, ?, ?, ?, ?, ?)',
