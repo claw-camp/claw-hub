@@ -1400,12 +1400,26 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
   let targetAgent = null;
   for (const [agentId, agent] of agents) {
     if (agent.botId === botId && agent.status === 'online') {
+  console.log("[Chat] 查找 Agent: botId=" + botId);
       targetAgent = agent;
       break;
+    console.log("[Chat]   检查 Agent " + agent.name + ": botId=" + agent.botId + ", status=" + agent.status);
     }
   }
 
   // 如果 WS 已断但 status 未更新，立即修正
+
+  // Fallback: 如果找不到，使用任意在线的 Agent
+  if (!targetAgent) {
+    console.log("[Chat] ❌ 未找到匹配的 Agent，尝试 fallback...");
+    for (const [agentId, agent] of agents) {
+      if (agent.status === "online") {
+        console.log("[Chat] ✅ 使用 fallback Agent: " + agent.name);
+        targetAgent = agent;
+        break;
+      }
+    }
+  }
   if (targetAgent && targetAgent.ws && targetAgent.ws.readyState !== 1) {
     console.log(`[Chat] Agent ${targetAgent.id} WS 已断开(state=${targetAgent.ws.readyState})，等待重连...`);
     // 等待最多 8s，看 Agent 是否重连
