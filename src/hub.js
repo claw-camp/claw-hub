@@ -1433,6 +1433,21 @@ wss.on('connection', (ws, req) => {
           }
           clients.add(ws);
           ws.send(JSON.stringify({ type: 'agents', payload: getAgentList() }));
+          // 广播在线 Agent 状态给 App
+          agents.forEach((agent, id) => {
+            if (agent.status === 'online') {
+              ws.send(JSON.stringify({
+                type: 'agent_status',
+                payload: {
+                  agentId: agent.botId || id,
+                  status: 'online',
+                  model: agent.gateway?.model,
+                  sessions: agent.sessions?.length || 0,
+                  uptime: 0
+                }
+              }));
+            }
+          });
           return;
         }
         // 消息送达回执

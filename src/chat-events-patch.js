@@ -4,10 +4,13 @@
 
 async function sendMsgAck(pool, conversationId, messageId, userId) {
   if (global.broadcastChatEvent) {
-    global.broadcastChatEvent(conversationId, "msg_ack", {
-      messageId,
-      status: "delivered",
-      deliveredAt: Date.now()
+    global.broadcastChatEvent(conversationId, {
+      type: "msg_ack",
+      payload: {
+        messageId,
+        status: "delivered",
+        deliveredAt: Date.now()
+      }
     });
   }
 }
@@ -19,15 +22,21 @@ async function sendMsgRead(pool, conversationId, messageId) {
   );
   
   if (global.broadcastChatEvent) {
-    global.broadcastChatEvent(conversationId, "msg_read", { messageId });
+    global.broadcastChatEvent(conversationId, {
+      type: "msg_read",
+      payload: { messageId }
+    });
   }
 }
 
 function sendMsgThinking(conversationId, messageId) {
   if (global.broadcastChatEvent) {
-    global.broadcastChatEvent(conversationId, "msg_thinking", {
-      messageId,
-      thinkingMs: 0
+    global.broadcastChatEvent(conversationId, {
+      type: "msg_thinking",
+      payload: {
+        messageId,
+        thinkingMs: 0
+      }
     });
   }
 }
@@ -41,7 +50,10 @@ async function sendMsgReply(pool, conversationId, reply) {
   );
   
   if (global.broadcastChatEvent) {
-    global.broadcastChatEvent(conversationId, "msg_reply", reply);
+    global.broadcastChatEvent(conversationId, {
+      type: "msg_reply",
+      payload: reply
+    });
   }
 }
 
