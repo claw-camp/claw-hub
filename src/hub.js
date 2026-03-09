@@ -27,6 +27,7 @@ const PORT = process.env.CLAW_HUB_PORT || 8889;
 const VERSION = require('../package.json').version;
 const GIT_REPO = 'https://github.com/PhosAQy/claw-hub';
 const UPDATE_TOKEN = process.env.CLAW_UPDATE_TOKEN || 'claw-hub-2026';
+const APP_VERSION = '1.1.4';  // App 版本号（唯一配置点）
 
 /**
  * 生成唯一 ID
@@ -566,9 +567,7 @@ const server = http.createServer((req, res) => {
   }
 
   // App 版本检查
-  if (req.url === '/api/app/version') {
-    const APP_VERSION = '1.0.9'; // 与 pubspec.yaml 保持同步
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+  if (req.url === '/api/app/version') {    res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       version: APP_VERSION,
       downloadUrl: 'https://github.com/claw-camp/camp-flutter/releases/latest/download/app-release.apk',

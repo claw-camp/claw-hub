@@ -1,3 +1,12 @@
+const {
+  sendMsgAck,
+  sendMsgRead,
+  sendMsgThinking,
+  sendMsgReply,
+  getUnreadCount,
+  markConversationRead
+} = require("./chat-events-patch");
+
 /**
  * 聊天功能 API 路由
  */
@@ -1424,11 +1433,11 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
         msgType: 'text', timestamp: Date.now()
       }
     });
-    // 广播到 Agent 的所有 WebSocket 连接（支持多 Gateway）
+    // 只发给第一个有效的 WebSocket 连接（避免重复）
     if (targetAgent.sockets && targetAgent.sockets.size > 0) {
-      targetAgent.sockets.forEach(ws => {
-        if (ws.readyState === 1) ws.send(msgData);
-      });
+      for (const ws of targetAgent.sockets) {
+        if (ws.readyState === 1) { ws.send(msgData); break; }
+      }
     } else if (targetAgent.ws && targetAgent.ws.readyState === 1) {
       targetAgent.ws.send(msgData);
     }
@@ -1447,6 +1456,11 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
   if (global.broadcastChatMessage && msgs[0]) {
     global.broadcastChatMessage(conversationId, msgs[0]);
   }
+  
+  // 发送消息确认
+  sendMsgAck(pool, conversationId, messageId, botId).catch(e => 
+    console.error("[Chat] sendMsgAck error:", e.message)
+  );
 }
 
 module.exports = { registerChatRoutes };

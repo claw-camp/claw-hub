@@ -1700,44 +1700,73 @@
   
   <!-- Bot 详情模态框 -->
   <div id="botDetailModal" class="key-modal">
-    <div class="key-content">
+    <div class="key-content" style="max-width: 600px;">
       <div class="key-header">
         <h3 id="botDetailTitle">🤖 Bot 详情</h3>
         <button class="modal-close" onclick="closeBotDetailModal()">×</button>
       </div>
       <div class="key-body">
+        <!-- 顶部：ID 和 Token -->
         <div class="key-info">
-          <label>Bot ID：</label>
+          <label>Bot ID</label>
           <div class="key-display">
-            <input type="text" id="botIdDisplay" readonly>
-            <button class="copy-btn" onclick="copyBotId()">📋 复制</button>
+            <input type="text" id="botIdDisplay" readonly style="font-family: monospace;">
+            <button class="copy-btn" onclick="copyBotId()">📋</button>
           </div>
         </div>
-        <div class="key-info" style="margin-top: 20px;">
-          <label>Bot Token（用于 Agent 配置）：</label>
+        <div class="key-info" style="margin-top: 12px;">
+          <label>Token</label>
           <div class="key-display">
-            <input type="text" id="botTokenDisplay" readonly>
-            <button class="copy-btn" onclick="copyBotToken()">📋 复制</button>
+            <input type="text" id="botTokenDisplay" readonly style="font-family: monospace;">
+            <button class="copy-btn" onclick="copyBotToken()">📋</button>
           </div>
         </div>
-        <div class="key-usage">
-          <h4>使用方法：</h4>
-          <pre><code>{
-  "plugins": {
-    "entries": {
-      "claw-camp-agent": {
-        "enabled": true,
-        "hubUrl": "wss://camp.aigc.sx.cn/ws",
-        "token": "<span id="botTokenPlaceholder">YOUR_BOT_TOKEN</span>",
-        "agentId": "<span id="botIdPlaceholder">YOUR_BOT_ID</span>"
-      }
-    }
-  }
-}</code></pre>
+        
+        <!-- 接入流程 -->
+        <div style="margin-top: 24px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; padding: 20px; border: 1px solid #dee2e6;">
+          <h4 style="margin: 0 0 16px 0; color: #E8372B; font-size: 15px; display: flex; align-items: center; gap: 8px;">
+            <span style="background: #E8372B; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px;">⚡</span>
+            OpenClaw 原生接入流程
+          </h4>
+          
+          <!-- 步骤 1 -->
+          <div style="margin-bottom: 16px;">
+            <div style="font-weight: 600; color: #333; margin-bottom: 6px; font-size: 13px;">
+              <span style="background: #27ae60; color: white; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 6px;">1</span>
+              安装 OpenClaw 开源社区 claw-camp 插件
+            </div>
+            <div style="background: #1e1e1e; color: #d4d4d4; padding: 10px 12px; border-radius: 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; overflow-x: auto;">
+              <span style="color: #569cd6;">openclaw</span> plugins install @claw-camp/openclaw-plugin
+            </div>
+          </div>
+          
+          <!-- 步骤 2 -->
+          <div style="margin-bottom: 16px;">
+            <div style="font-weight: 600; color: #333; margin-bottom: 6px; font-size: 13px;">
+              <span style="background: #27ae60; color: white; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 6px;">2</span>
+              配置 OpenClaw（复制运行即可）
+            </div>
+            <div style="background: #1e1e1e; color: #d4d4d4; padding: 10px 12px; border-radius: 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 11px; overflow-x: auto; line-height: 1.5;">
+<span style="color: #569cd6;">openclaw</span> channels add --channel claw-camp --token <span id="botTokenCmd" style="color: #ce9178;">"BOT_ID:TOKEN"</span>
+            </div>
+          </div>
+          
+          <!-- 步骤 3 -->
+          <div>
+            <div style="font-weight: 600; color: #333; margin-bottom: 6px; font-size: 13px;">
+              <span style="background: #27ae60; color: white; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 6px;">3</span>
+              重启本地 OpenClaw 服务
+            </div>
+            <div style="background: #1e1e1e; color: #d4d4d4; padding: 10px 12px; border-radius: 6px; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; overflow-x: auto;">
+              <span style="color: #569cd6;">openclaw</span> gateway restart
+            </div>
+          </div>
         </div>
-        <div style="margin-top: 20px; display: flex; gap: 10px;">
+        
+        <!-- 底部按钮 -->
+        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+          <button class="control-btn stop" onclick="deleteBot()">🗑️ 删除</button>
           <button class="control-btn refresh" onclick="regenerateBotToken()">🔄 重新生成 Token</button>
-          <button class="control-btn stop" onclick="deleteBot()">🗑️ 删除 Bot</button>
         </div>
       </div>
     </div>
@@ -2959,8 +2988,7 @@
         document.getElementById('botDetailTitle').textContent = `🤖 ${currentBot.name}`;
         document.getElementById('botIdDisplay').value = currentBot.bot_id;
         document.getElementById('botTokenDisplay').value = currentBot.token;
-        document.getElementById('botTokenPlaceholder').textContent = currentBot.token;
-        document.getElementById('botIdPlaceholder').textContent = currentBot.bot_id;
+        document.getElementById('botTokenCmd').textContent = '"' + currentBot.bot_id + ':' + currentBot.token + '"';
         document.getElementById('botDetailModal').classList.add('show');
         
       } catch (err) {
@@ -3033,7 +3061,7 @@
         // 更新显示
         currentBot.token = data.token;
         document.getElementById('botTokenDisplay').value = data.token;
-        document.getElementById('botTokenPlaceholder').textContent = data.token;
+        document.getElementById('botTokenCmd').textContent = '"' + currentBot.bot_id + ':' + currentBot.token + '"';
         
         showToast('✅ Token 已重新生成', 'success');
         
