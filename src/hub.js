@@ -552,6 +552,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // App 版本检查
+  if (req.url === '/api/app/version') {
+    const APP_VERSION = '1.0.9'; // 与 pubspec.yaml 保持同步
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      version: APP_VERSION,
+      downloadUrl: 'https://github.com/claw-camp/camp-flutter/releases/latest/download/app-release.apk',
+      releaseNotes: '添加检查更新功能'
+    }));
+    return;
+  }
+
   // 检查更新
   if (req.url === '/api/check-update') {
     getLatestVersion().then(latest => {
