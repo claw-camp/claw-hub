@@ -324,6 +324,19 @@ function broadcastChatMessage(conversationId, message) {
 }
 
 /**
+ * 广播消息给 Agent 的所有 WebSocket 连接
+ */
+function broadcastToAgent(agent, data) {
+  if (!agent || !agent.sockets) return;
+  const msg = typeof data === 'string' ? data : JSON.stringify(data);
+  agent.sockets.forEach(ws => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    }
+  });
+}
+
+/**
  * 广播聊天事件给所有客户端（如撤回通知）
  */
 function broadcastChatEvent(conversationId, event) {
@@ -668,8 +681,8 @@ const server = http.createServer((req, res) => {
       return;
     }
     
-    // 发送更新命令到 Agent
-    agent.ws.send(JSON.stringify({ type: 'update', payload: { token } }));
+    // 发送更新命令到 Agent（广播到所有连接）
+    broadcastToAgent(agent, { type: 'update', payload: { token } });
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Update command sent' }));
@@ -697,7 +710,7 @@ const server = http.createServer((req, res) => {
     }
     
     // 发送启动命令到 Agent
-    agent.ws.send(JSON.stringify({ type: 'gateway-start', payload: { token } }));
+    broadcastToAgent(agent, { type: 'gateway-start', payload: { token } });
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Gateway start command sent' }));
@@ -725,7 +738,8 @@ const server = http.createServer((req, res) => {
     }
     
     // 发送停止命令到 Agent
-    agent.ws.send(JSON.stringify({ type: 'gateway-stop', payload: { token } }));
+    // 发送停止命令到 Agent（广播到所有连接）
+    broadcastToAgent(agent, { type: 'gateway-stop', payload: { token } });
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Gateway stop command sent' }));
@@ -745,7 +759,7 @@ const server = http.createServer((req, res) => {
     }
     
     // 发送状态刷新请求到 Agent
-    agent.ws.send(JSON.stringify({ type: 'status-request' }));
+    broadcastToAgent(agent, { type: 'status-request' });
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Status refresh request sent' }));
@@ -773,7 +787,7 @@ const server = http.createServer((req, res) => {
     }
     
     // 发送重启命令到 Agent
-    agent.ws.send(JSON.stringify({ type: 'gateway-restart', payload: { token } }));
+    broadcastToAgent(agent, { type: 'gateway-restart', payload: { token } });
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, message: 'Gateway restart command sent' }));
@@ -807,11 +821,11 @@ const server = http.createServer((req, res) => {
     
     pendingRequests.set(requestId, { res, timeout });
     
-    // 发送请求到 Agent
-    agent.ws.send(JSON.stringify({
+    // 发送请求到 Agent（广播到所有连接）
+    broadcastToAgent(agent, {
       type: 'session-history',
       payload: { sessionKey, limit, requestId }
-    }));
+    });
     return;
   }
 
