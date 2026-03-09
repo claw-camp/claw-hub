@@ -357,7 +357,7 @@ function broadcastChatEvent(conversationId, event) {
   });
 
 // 广播 Agent 状态变化
-function broadcastAgentStatus(agentId, status, model, sessions, uptime) {
+function broadcastAgentStatus(agentId, status, model, sessions, uptime, name) {
   const data = JSON.stringify({
     type: 'agent_status',
     payload: {
@@ -1480,7 +1480,7 @@ wss.on('connection', (ws, req) => {
         agent.lastSeen = Date.now();
         console.log(`[Hub] Agent 离线: ${agent.name}`);
         broadcastToClients();
-        broadcastAgentStatus(agentId, 'offline', agent.gateway?.model, agent.sessions?.length, 0);
+        broadcastAgentStatus(agentId, 'offline', agent.gateway?.model, agent.sessions?.length, 0, agent.name);
       }
     } else {
       clients.delete(ws);
@@ -1527,7 +1527,7 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           ws.send(JSON.stringify({ type: 'registered', payload: { id: payload.id } }));
           broadcastToClients();
           return;  // 不需要创建新 agent
-          broadcastAgentStatus(payload.id, 'online', existingAgent.gateway?.model, existingAgent.sessions?.length, 0);
+          broadcastAgentStatus(payload.id, 'online', existingAgent.gateway?.model, existingAgent.sessions?.length, 0, existingAgent.name);
         }
 
         const agent = {
@@ -1549,7 +1549,7 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
         console.log(`[Hub] Agent 注册: ${agent.name} @ ${agent.host} (v${payload.agentVersion || 'N/A'}) botId=${botId}`);
         ws.send(JSON.stringify({ type: 'registered', payload: { id: payload.id } }));
         broadcastToClients();
-        broadcastAgentStatus(payload.id, 'online', agent.gateway?.model, agent.sessions?.length, 0);
+        broadcastAgentStatus(payload.id, 'online', agent.gateway?.model, agent.sessions?.length, 0, agent.name);
       })();
       break;
     }
@@ -1693,7 +1693,7 @@ setInterval(() => {
   agents.forEach(agent => {
     if (agent.status === 'online' && now - agent.lastSeen > 30000) {
       agent.status = 'offline';
-      broadcastAgentStatus(agent.id, 'offline', agent.gateway?.model, agent.sessions?.length, 0);
+      broadcastAgentStatus(agent.id, 'offline', agent.gateway?.model, agent.sessions?.length, 0, agent.name);
       changed = true;
       // 关闭假死连接
       if (agent.ws && agent.ws.readyState !== 3) {
