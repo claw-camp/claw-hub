@@ -355,6 +355,7 @@ function broadcastChatEvent(conversationId, event) {
       client.send(data);
     }
   });
+}
 
 // 广播 Agent 状态变化
 function broadcastAgentStatus(agentId, status, model, sessions, uptime, name) {
@@ -376,8 +377,6 @@ function broadcastAgentStatus(agentId, status, model, sessions, uptime, name) {
     }
   });
 }
-}
-
 /**
  * 查询 Token 消耗时间序列（使用精确数据）
  */
