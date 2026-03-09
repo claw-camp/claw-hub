@@ -1459,6 +1459,13 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           }
         }
 
+        // 关闭旧连接，避免假死连接占用资源
+        const oldAgent = agents.get(payload.id);
+        if (oldAgent && oldAgent.ws && oldAgent.ws !== ws) {
+          console.log(`[Hub] Agent ${payload.id} 重新注册，关闭旧连接`);
+          try { oldAgent.ws.terminate(); } catch (_) {}
+        }
+
         const agent = {
           id: payload.id,
           name: payload.name || payload.id,
@@ -1612,6 +1619,11 @@ setInterval(() => {
     if (agent.status === 'online' && now - agent.lastSeen > 30000) {
       agent.status = 'offline';
       changed = true;
+      // 关闭假死连接
+      if (agent.ws && agent.ws.readyState !== 3) {
+        console.log(`[Hub] Agent ${agent.id} 心跳超时，关闭连接`);
+        try { agent.ws.terminate(); } catch (_) {}
+      }
     }
   });
   if (changed) broadcastToClients();
