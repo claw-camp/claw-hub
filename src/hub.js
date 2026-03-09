@@ -28,7 +28,7 @@ const PORT = process.env.CLAW_HUB_PORT || 8889;
 const VERSION = require('../package.json').version;
 const GIT_REPO = 'https://github.com/PhosAQy/claw-hub';
 const UPDATE_TOKEN = process.env.CLAW_UPDATE_TOKEN || 'claw-hub-2026';
-const APP_VERSION = '1.1.6';  // App 版本号（唯一配置点）
+const APP_VERSION = '1.1.7';  // App 版本号（唯一配置点）
 
 /**
  * 生成唯一 ID
@@ -1444,7 +1444,8 @@ wss.on('connection', (ws, req) => {
                   status: 'online',
                   model: agent.gateway?.model,
                   sessions: agent.sessions?.length || 0,
-                  uptime: 0
+                  uptime: 0,
+                  name: agent.name
                 }
               }));
             }
