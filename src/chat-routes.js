@@ -267,7 +267,8 @@ function registerChatRoutes(server, pool, agents) {
                cm.role,
                (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.conversation_id AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01')) as unread_count,
                (SELECT content FROM messages m WHERE m.conversation_id = c.conversation_id ORDER BY created_at DESC LIMIT 1) as last_message,
-               (SELECT created_at FROM messages m WHERE m.conversation_id = c.conversation_id ORDER BY created_at DESC LIMIT 1) as last_message_at
+               (SELECT created_at FROM messages m WHERE m.conversation_id = c.conversation_id ORDER BY created_at DESC LIMIT 1) as last_message_at,
+             (SELECT cm2.user_id FROM conversation_members cm2 WHERE cm2.conversation_id = c.conversation_id AND cm2.user_id LIKE 'bot_%' LIMIT 1) as bot_id
         FROM conversations c
         JOIN conversation_members cm ON c.conversation_id = cm.conversation_id
         WHERE cm.user_id = ? AND c.is_active = TRUE
