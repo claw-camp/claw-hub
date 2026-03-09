@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const { registerFeishuRoutes } = require('./feishu-integration');
 const { registerChatRoutes } = require('./chat-routes');
+const { sendMsgReply, sendMsgThinking } = require('./chat-events-patch');
 
 // 加载 .env 文件（如果存在）
 const envPath = path.join(__dirname, '..', '.env');
@@ -354,6 +355,26 @@ function broadcastChatEvent(conversationId, event) {
       client.send(data);
     }
   });
+
+// 广播 Agent 状态变化
+function broadcastAgentStatus(agentId, status, model, sessions, uptime) {
+  const data = JSON.stringify({
+    type: 'agent_status',
+    payload: {
+      agentId,
+      status,
+      model,
+      sessions,
+      uptime
+    }
+  });
+
+  clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
+}
 }
 
 /**
@@ -1444,6 +1465,7 @@ wss.on('connection', (ws, req) => {
         agent.lastSeen = Date.now();
         console.log(`[Hub] Agent 离线: ${agent.name}`);
         broadcastToClients();
+        broadcastAgentStatus(agentId, 'offline', agent.gateway?.model, agent.sessions?.length, 0);
       }
     } else {
       clients.delete(ws);
@@ -1490,6 +1512,7 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           ws.send(JSON.stringify({ type: 'registered', payload: { id: payload.id } }));
           broadcastToClients();
           return;  // 不需要创建新 agent
+          broadcastAgentStatus(payload.id, 'online', existingAgent.gateway?.model, existingAgent.sessions?.length, 0);
         }
 
         const agent = {
@@ -1511,6 +1534,7 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
         console.log(`[Hub] Agent 注册: ${agent.name} @ ${agent.host} (v${payload.agentVersion || 'N/A'}) botId=${botId}`);
         ws.send(JSON.stringify({ type: 'registered', payload: { id: payload.id } }));
         broadcastToClients();
+        broadcastAgentStatus(payload.id, 'online', agent.gateway?.model, agent.sessions?.length, 0);
       })();
       break;
     }
@@ -1614,6 +1638,15 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           // 广播给前端（完成 Agent → Hub → 前端 的最后一步）
           if (messages[0] && global.broadcastChatMessage) {
             global.broadcastChatMessage(conversationId, messages[0]);
+
+            // 广播 msg_reply 事件（含元数据）
+            await sendMsgReply(pool, conversationId, {
+              messageId: replyMsgId,
+              model: null,
+              inputTokens: 0,
+              outputTokens: 0,
+              thinkingMs: 0
+            });
             console.log(`[Hub] Agent 回复已广播: ${replyMsgId}, bot=${agentId}`);
           }
         } catch (e) {
@@ -1645,6 +1678,7 @@ setInterval(() => {
   agents.forEach(agent => {
     if (agent.status === 'online' && now - agent.lastSeen > 30000) {
       agent.status = 'offline';
+      broadcastAgentStatus(agent.id, 'offline', agent.gateway?.model, agent.sessions?.length, 0);
       changed = true;
       // 关闭假死连接
       if (agent.ws && agent.ws.readyState !== 3) {

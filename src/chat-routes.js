@@ -346,6 +346,9 @@ function registerChatRoutes(server, pool, agents) {
         );
         const message = messages[0];
         
+        // 广播消息确认（msg_ack）
+        await sendMsgAck(pool, conversationId, messageId, userId);
+        
         // 保存 @ 提及记录
         if (mentions.length > 0 || mentionAll) {
           // 获取所有会话成员（用于 @全体成员）
@@ -705,6 +708,9 @@ function registerChatRoutes(server, pool, agents) {
       }
       
       const message = messages[0];
+        
+        // 广播消息确认（msg_ack）
+        await sendMsgAck(pool, conversationId, messageId, userId);
       
       // 验证用户是否在会话中
       const [memberCheck] = await pool.query(
@@ -775,6 +781,9 @@ function registerChatRoutes(server, pool, agents) {
       }
       
       const message = messages[0];
+        
+        // 广播消息确认（msg_ack）
+        await sendMsgAck(pool, conversationId, messageId, userId);
       
       // 获取已读用户列表
       const [reads] = await pool.query(`
@@ -908,6 +917,9 @@ function registerChatRoutes(server, pool, agents) {
       }
       
       const message = messages[0];
+        
+        // 广播消息确认（msg_ack）
+        await sendMsgAck(pool, conversationId, messageId, userId);
       
       // 验证是否是自己的消息
       if (message.sender_id !== userId || message.sender_type !== 'user') {
@@ -1084,6 +1096,9 @@ server.on('request', async (req, res) => {
     }
     
     const message = messages[0];
+        
+        // 广播消息确认（msg_ack）
+        await sendMsgAck(pool, conversationId, messageId, userId);
     
     // 验证权限：只能撤回自己的消息
     if (message.sender_id !== userId) {
