@@ -1421,6 +1421,11 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     if (isAgent && agentId && agents.has(agentId)) {
       const agent = agents.get(agentId);
+      // 只处理当前连接的 close 事件，忽略旧连接被关闭时的误触发
+      if (agent.ws !== ws) {
+        console.log(`[Hub] 忽略旧连接的 close 事件: ${agentId}`);
+        return;
+      }
       agent.status = 'offline';
       agent.lastSeen = Date.now();
       console.log(`[Hub] Agent 离线: ${agent.name}`);
