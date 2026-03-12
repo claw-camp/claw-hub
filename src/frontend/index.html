@@ -1397,6 +1397,64 @@
       margin: 0;
     }
     
+    /* ========== 工作状态消息样式 ========== */
+    .message-bubble.status {
+      background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+      border: 1px solid #2196F3;
+      color: #1565C0;
+      font-size: 13px;
+      max-width: 80%;
+    }
+    
+    .message-bubble.status.complete {
+      background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+      border: 1px solid #4CAF50;
+      color: #2E7D32;
+    }
+    
+    .status-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    
+    .status-icon {
+      font-size: 16px;
+    }
+    
+    .status-icon.working {
+      animation: spin 2s linear infinite;
+    }
+    
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    .status-text {
+      font-weight: 600;
+    }
+    
+    /* 状态加载动画 */
+    .status-loading {
+      display: inline-flex;
+      gap: 3px;
+      margin-left: 6px;
+    }
+    
+    .status-loading span {
+      width: 5px;
+      height: 5px;
+      background: #2196F3;
+      border-radius: 50%;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    
+    .status-loading span:nth-child(1) { animation-delay: 0s; }
+    .status-loading span:nth-child(2) { animation-delay: 0.15s; }
+    .status-loading span:nth-child(3) { animation-delay: 0.3s; }
+    
     /* 思考加载动画 */
     .thinking-dots {
       display: inline-flex;
@@ -3320,8 +3378,14 @@
               // 检查消息是否已存在（避免重复）
               const container = document.getElementById('messagesContainer');
               const existingMsg = container.querySelector(`[data-message-id="${msg.payload.message_id}"]`);
+              const existingStream = container.querySelector(`[data-stream-id="stream-${msg.payload.message_id}"]`);
 
-              if (!existingMsg) {
+              if (existingStream && !existingMsg) {
+                existingStream.classList.remove('streaming');
+                existingStream.removeAttribute('data-stream-id');
+                existingStream.setAttribute('data-message-id', msg.payload.message_id);
+                existingStream.innerHTML = `${escapeHtml(msg.payload.content || '')}<div class="time">${new Date(msg.payload.created_at || Date.now()).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>`;
+              } else if (!existingMsg) {
                 appendMessage(msg.payload);
               }
 
@@ -3336,6 +3400,17 @@
             }
             // 刷新会话列表
             loadConversations();
+          } else if (msg.type === 'chat-stream' && currentConversation) {
+            if (msg.payload.conversationId === currentConversation.conversation_id) {
+              appendMessage({
+                message_id: msg.payload.messageId,
+                content: msg.payload.chunk || '',
+                streamingState: msg.payload.isDone ? 'complete' : 'streaming',
+                streamingText: msg.payload.chunk || '',
+                created_at: Date.now(),
+                sender_id: 'assistant'
+              });
+            }
           } else if (msg.type === 'message-delivered') {
             // 送达回执：更新发送方消息的状态圆圈为绿色
             handleDeliveredNotification(msg.payload);
@@ -3377,9 +3452,21 @@
       const empty = container.querySelector('.chat-empty');
       if (empty) empty.remove();
 
-      // 检查是否是思考消息更新
+      // 检查是否是状态消息
+      if (msg.statusState) {
+        handleStatusMessage(msg);
+        return;
+      }
+
+      // 检查是否是思考消息
       if (msg.reasoningState) {
         handleReasoningMessage(msg);
+        return;
+      }
+
+      // 检查是否是流式消息
+      if (msg.streamingState) {
+        handleStreamingMessage(msg);
         return;
       }
 
@@ -3409,6 +3496,48 @@
       requestAnimationFrame(() => {
         messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
       });
+    }
+
+    // 处理状态消息（更新或新增）
+    function handleStatusMessage(msg) {
+      const container = document.getElementById('messagesContainer');
+      const statusId = `status-${msg.msgId || msg.message_id}`;
+      
+      // 查找已存在的状态消息
+      let statusDiv = container.querySelector(`[data-status-id="${statusId}"]`);
+      
+      const statusText = msg.statusTask || msg.content || '';
+      
+      if (statusDiv) {
+        // 更新已存在的状态消息
+        const textEl = statusDiv.querySelector('.status-text');
+        if (textEl) {
+          textEl.textContent = statusText;
+        }
+      } else {
+        // 创建新的状态消息
+        statusDiv = document.createElement('div');
+        statusDiv.className = 'message-bubble received status';
+        statusDiv.setAttribute('data-status-id', statusId);
+        
+        statusDiv.innerHTML = `
+          <div class="status-content">
+            <span class="status-text">${escapeHtml(statusText)}</span>
+            <span class="status-loading">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </div>
+        `;
+        
+        container.appendChild(statusDiv);
+        
+        // 滚动到底部
+        requestAnimationFrame(() => {
+          statusDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        });
+      }
     }
 
     // 处理思考消息（更新或新增）
@@ -3486,6 +3615,31 @@
       }
     }
 
+    // 处理流式消息（更新或新增）
+    function handleStreamingMessage(msg) {
+      const container = document.getElementById('messagesContainer');
+      const streamId = `stream-${msg.message_id || msg.msgId}`;
+      let streamDiv = container.querySelector(`[data-stream-id="${streamId}"]`);
+      const isComplete = msg.streamingState === 'complete';
+      const text = msg.streamingText || msg.content || '';
+
+      if (streamDiv) {
+        streamDiv.innerHTML = `${escapeHtml(text)}<div class="time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>`;
+        if (isComplete) {
+          streamDiv.classList.remove('streaming');
+        }
+      } else {
+        streamDiv = document.createElement('div');
+        streamDiv.className = `message-bubble received ${isComplete ? '' : 'streaming'}`;
+        streamDiv.setAttribute('data-stream-id', streamId);
+        streamDiv.innerHTML = `${escapeHtml(text)}<div class="time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>`;
+        container.appendChild(streamDiv);
+      }
+
+      requestAnimationFrame(() => {
+        streamDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      });
+    }
 
     // 处理送达回执：将状态圆圈变为绿色
     function handleDeliveredNotification(payload) {

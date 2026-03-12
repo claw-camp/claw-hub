@@ -426,6 +426,7 @@ async function getTokenTimeSeries(agentId = null, hours = 6) {
 
 const agents = new Map();
 const clients = new Set();
+global.clients = clients;  // 暴露给 chat-routes 使用
 const pendingRequests = new Map();  // 等待 Agent 响应的请求
 
 // ──────────────────────────────────────────────
@@ -588,12 +589,25 @@ const server = http.createServer((req, res) => {
   }
 
   // App 版本检查
-  if (req.url === '/api/app/version') {    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      version: APP_VERSION,
-      downloadUrl: 'https://github.com/claw-camp/camp-flutter/releases/latest/download/app-release.apk',
-      releaseNotes: '添加检查更新功能'
-    }));
+  if (req.url === '/api/app/version') {
+    // 从 app-version.json 读取版本信息
+    const fs = require('fs');
+    const path = require('path');
+    const versionPath = path.join(__dirname, 'app-version.json');
+
+    try {
+      const versionData = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(versionData));
+    } catch (e) {
+      // 读取失败，返回默认值
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        version: '1.0.0',
+        downloadUrl: 'https://github.com/claw-camp/camp-flutter/releases/latest/download/app-release.apk',
+        releaseNotes: '版本信息读取失败'
+      }));
+    }
     return;
   }
 
@@ -1613,7 +1627,7 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
       // Agent 回复聊天消息
       // 流程: Agent(channelRuntime.dispatchReply) → Hub(chat-reply) → DB → 前端(WebSocket broadcast)
       (async () => {
-        const { msgId, reply, conversationId, sessionKey, botId: payloadBotId } = payload;
+        const { msgId, reply, conversationId, sessionKey, botId: payloadBotId, messageId: providedMessageId } = payload;
 
         if (!conversationId || !reply) {
           console.warn(`[Hub] chat-reply 缺少必要字段: conv=${conversationId}, reply=${!!reply}`);
@@ -1637,7 +1651,7 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
 
         try {
           // 保存回复到数据库
-          const replyMsgId = generateId('msg');
+          const replyMsgId = providedMessageId || generateId('msg');
           const agentId = senderBotId || 'bot';
 
           await pool.query(
@@ -1667,6 +1681,45 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           }
         } catch (e) {
           console.error('[Hub] 保存 Agent 回复失败:', e.message);
+        }
+      })();
+      break;
+
+    case 'chat-stream':
+      // 流式消息 chunk - 直接转发给前端
+      // 流程: Agent → Hub(chat-stream) → 前端(WebSocket broadcast)
+      (async () => {
+        const { conversationId, messageId, chunk, isDone } = payload;
+
+        if (!conversationId) {
+          console.warn('[Hub] chat-stream 缺少 conversationId');
+          return;
+        }
+
+        console.log(`[Hub] 流式消息: conv=${conversationId}, msg=${messageId}, done=${isDone}`);
+
+        // 广播给前端
+        if (global.broadcastChatStream) {
+          global.broadcastChatStream(conversationId, payload);
+        }
+
+        // 如果完成，保存到数据库
+        if (isDone && pool) {
+          try {
+            const [rows] = await pool.query(
+              'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT 1',
+              [conversationId]
+            );
+            if (rows[0]) {
+              global.broadcastChatStream(conversationId, {
+                ...payload,
+                isDone: true,
+                message: rows[0],
+              });
+            }
+          } catch (e) {
+            console.error('[Hub] 获取最终消息失败:', e.message);
+          }
         }
       })();
       break;
