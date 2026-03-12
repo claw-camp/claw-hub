@@ -3350,6 +3350,9 @@
     function hideChatPage() {
       document.getElementById('chatPage').style.display = 'none';
       document.getElementById('botManagementPage').style.display = 'block';
+      if (chatWs && chatWs.readyState === WebSocket.OPEN) {
+        chatWs.send(JSON.stringify({ type: 'watch-conversation', conversationId: null }));
+      }
       currentConversation = null;
     }
 
@@ -3367,6 +3370,9 @@
 
       chatWs.onopen = () => {
         chatWs.send(JSON.stringify({ type: 'subscribe', campKey: currentUser?.campKey }));
+        if (currentConversation?.conversation_id) {
+          chatWs.send(JSON.stringify({ type: 'watch-conversation', conversationId: currentConversation.conversation_id }));
+        }
       };
 
       chatWs.onmessage = (event) => {
@@ -3400,7 +3406,7 @@
             }
             // 刷新会话列表
             loadConversations();
-          } else if (msg.type === 'chat-stream' && currentConversation) {
+          } else if ((msg.type === 'chat-stream' || msg.type === 'msg_stream') && currentConversation) {
             if (msg.payload.conversationId === currentConversation.conversation_id) {
               appendMessage({
                 message_id: msg.payload.messageId,
@@ -3849,6 +3855,9 @@
         currentConversation = convData.conversations.find(c => c.conversation_id === conversationId);
 
         if (!currentConversation) throw new Error('会话不存在');
+        if (chatWs && chatWs.readyState === WebSocket.OPEN) {
+          chatWs.send(JSON.stringify({ type: 'watch-conversation', conversationId: currentConversation.conversation_id }));
+        }
 
         const icon = currentConversation.type === 'bot' ? '🤖' : (currentConversation.type === 'group' ? '👥' : '👤');
         chatTitle.textContent = `${icon} ${currentConversation.name}`;

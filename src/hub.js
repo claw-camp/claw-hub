@@ -428,6 +428,7 @@ const agents = new Map();
 const clients = new Set();
 global.clients = clients;  // 暴露给 chat-routes 使用
 const pendingRequests = new Map();  // 等待 Agent 响应的请求
+const recentChatStreams = new Map(); // messageId -> timestamp，判断是否已有真实流式
 
 // ──────────────────────────────────────────────
 // 版本管理和更新
@@ -1445,6 +1446,8 @@ wss.on('connection', (ws, req) => {
               if (users.length) ws.userId = users[0].user_id;
             } catch (e) { /* 忽略，不影响主流程 */ }
           }
+          ws.campKey = msg.campKey || null;
+          ws.conversationId = null;
           clients.add(ws);
           ws.send(JSON.stringify({ type: 'agents', payload: getAgentList() }));
           // 广播在线 Agent 状态给 App
@@ -1463,6 +1466,10 @@ wss.on('connection', (ws, req) => {
               }));
             }
           });
+          return;
+        }
+        if (msg.type === 'watch-conversation') {
+          ws.conversationId = msg.conversationId || null;
           return;
         }
         // 消息送达回执
@@ -1654,6 +1661,31 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           const replyMsgId = providedMessageId || generateId('msg');
           const agentId = senderBotId || 'bot';
 
+          // 如果上游没有发出真实流式，就在 Hub 侧模拟一个渐进流式，保证客户端先能看到“流起来”
+          const hadRealStream = recentChatStreams.has(replyMsgId) && (Date.now() - recentChatStreams.get(replyMsgId) < 15000);
+          if (!hadRealStream && global.broadcastChatStream) {
+            const text = String(reply);
+            const steps = Math.min(24, Math.max(6, Math.ceil(text.length / 24)));
+            for (let i = 1; i <= steps; i++) {
+              const end = Math.ceil((text.length * i) / steps);
+              global.broadcastChatStream(conversationId, {
+                conversationId,
+                sessionKey,
+                messageId: replyMsgId,
+                chunk: text.slice(0, end),
+                isDone: false,
+              });
+              await new Promise(resolve => setTimeout(resolve, i < steps ? 25 : 10));
+            }
+            global.broadcastChatStream(conversationId, {
+              conversationId,
+              sessionKey,
+              messageId: replyMsgId,
+              chunk: text,
+              isDone: true,
+            });
+          }
+
           await pool.query(
             'INSERT INTO messages (message_id, conversation_id, sender_id, sender_type, content, message_type) VALUES (?, ?, ?, ?, ?, ?)',
             [replyMsgId, conversationId, agentId, 'bot', reply, 'text']
@@ -1672,6 +1704,7 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
             // 广播 msg_reply 事件（含元数据）
             await sendMsgReply(pool, conversationId, {
               messageId: replyMsgId,
+              requestMessageId: msgId || null,
               model: null,
               inputTokens: 0,
               outputTokens: 0,
@@ -1697,6 +1730,9 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
         }
 
         console.log(`[Hub] 流式消息: conv=${conversationId}, msg=${messageId}, done=${isDone}`);
+        if (messageId) {
+          recentChatStreams.set(messageId, Date.now());
+        }
 
         // 广播给前端
         if (global.broadcastChatStream) {

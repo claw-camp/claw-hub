@@ -52,7 +52,10 @@ async function sendMsgReply(pool, conversationId, reply) {
   if (global.broadcastChatEvent) {
     global.broadcastChatEvent(conversationId, {
       type: "msg_reply",
-      payload: reply
+      payload: {
+        conversationId,
+        ...reply,
+      }
     });
   }
 }

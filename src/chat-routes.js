@@ -14,6 +14,7 @@ const {
 const crypto = require('crypto');
 const COS = require('cos-nodejs-sdk-v5');
 const multer = require('multer');
+const WebSocket = require('ws');
 
 // 配置 COS 客户端
 const cosClient = new COS({
@@ -166,6 +167,7 @@ function registerChatRoutes(server, pool, agents) {
         let conversationType = type;
         let members = [userId];
         let conversationName = name;
+        let conversationBotId = null;  // 🔥 新增：保存 botId
         
         if (type === 'direct' && targetUserId) {
           // 用户直聊
@@ -205,13 +207,20 @@ function registerChatRoutes(server, pool, agents) {
             [botId]
           );
           conversationName = bots[0]?.name || 'Bot';
+          conversationBotId = botId;  // 🔥 保存 botId
         }
         
         // 创建会话
         const conversationId = generateId('conv');
+        const insertFields = 'conversation_id, type, name, created_by' + 
+          (conversationBotId ? ', bot_id' : '');
+        const insertValues = [conversationId, conversationType, conversationName, userId] +
+          (conversationBotId ? [conversationBotId] : []);
+        const placeholders = '?, ?, ?, ?' + (conversationBotId ? ', ?' : '');
+        
         await pool.query(
-          'INSERT INTO conversations (conversation_id, type, name, created_by) VALUES (?, ?, ?, ?)',
-          [conversationId, conversationType, conversationName, userId]
+          `INSERT INTO conversations (${insertFields}) VALUES (${placeholders})`,
+          insertValues
         );
         
         // 添加成员
@@ -1455,6 +1464,10 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
     // 转发消息给 Agent（Agent 通过 channelRuntime.dispatchReply 回复）
     const sessionKey = `${botId}:direct:${userId}`;
     const userMsgId = generateId('msg');
+    const streamMessageId = `stream-${userMsgId}`;
+
+    // thinking 的 messageId 要和最终 msg_reply 的 messageId 对齐，旧版 Flutter 才能立刻清掉
+    sendMsgThinking(conversationId, streamMessageId);
     const msgData = JSON.stringify({
       type: 'chat-message',
       payload: {
@@ -1494,3 +1507,18 @@ async function handleBotReply(pool, agents, conversationId, botId, userMessage, 
 }
 
 module.exports = { registerChatRoutes };
+
+// 🔥 流式广播函数
+global.broadcastChatStream = function(conversationId, streamPayload) {
+  if (!global.clients) return;
+
+  global.clients.forEach(client => {
+    if (client.readyState !== WebSocket.OPEN) return;
+    // 兼容旧版 Flutter：它不会发送 watch-conversation，所以这里不能强依赖 client.conversationId
+    if (client.conversationId && client.conversationId !== conversationId) return;
+    client.send(JSON.stringify({
+      type: 'msg_stream',
+      payload: streamPayload
+    }));
+  });
+};
