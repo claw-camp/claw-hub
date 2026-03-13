@@ -1,14 +1,15 @@
 {
-  "version": "1.5.1",
-  "versionCode": 46,
-  "downloadUrl": "https://github.com/claw-camp/claw-hub/releases/download/v1.5.1/app-release.apk",
-  "releaseNotes": "修复未读消息提示错误、后台收不到消息、进入不自动刷新等问题",
+  "version": "1.5.2",
+  "versionCode": 47,
+  "downloadUrl": "https://github.com/claw-camp/claw-hub/releases/download/v1.5.2/app-release.apk",
+  "releaseNotes": "修复 package_info 初始化失败问题",
   "releaseDate": "2026-03-13",
   "minAndroidVersion": 21,
   "features": [
     "修复未读消息数不准确问题",
     "修复不在聊天框时收不到消息",
     "修复进入 App 不自动刷新",
-    "后台消息通知优化"
+    "后台消息通知优化",
+    "修复版本信息获取失败"
   ]
 }
