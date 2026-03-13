@@ -1663,8 +1663,8 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           const replyMsgId = providedMessageId || generateId('msg');
           const agentId = senderBotId || 'bot';
 
-          // 如果上游没有发出真实流式，就在 Hub 侧模拟一个渐进流式，保证客户端先能看到"流起来"
-          const hadRealStream = recentChatStreams.has(replyMsgId) && (Date.now() - recentChatStreams.get(replyMsgId) < 15000);
+          // 🔥 临时禁用 Agent 流式，强制用 Hub 模拟流式（修复 Agent chunk 为空问题）
+          const hadRealStream = false; // 强制使用模拟流式
           const usedSimulatedStream = !hadRealStream && global.broadcastChatStream;
           console.log(`[Hub] 模拟流式检查: replyMsgId=${replyMsgId}, hadRealStream=${hadRealStream}, usedSimulatedStream=${usedSimulatedStream}, reply长度=${reply?.length || 0}`);
           if (usedSimulatedStream) {
