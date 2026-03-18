@@ -30,6 +30,15 @@ const GIT_REPO = 'https://github.com/PhosAQy/claw-hub';
 const UPDATE_TOKEN = process.env.CLAW_UPDATE_TOKEN || 'claw-hub-2026';
 const APP_VERSION = '1.1.7';  // App 版本号（唯一配置点）
 
+// ──────────────────────────────────────────────
+// 全局变量（必须在加载 chat-routes 之前）
+// ──────────────────────────────────────────────
+const agents = new Map();
+const clients = new Set();
+global.clients = clients;  // 暴露给 chat-routes 使用
+const pendingRequests = new Map();
+const recentChatStreams = new Map();
+
 /**
  * 生成唯一 ID
  */
@@ -423,16 +432,6 @@ async function getTokenTimeSeries(agentId = null, hours = 6) {
 }
 
 // ──────────────────────────────────────────────
-// Agent 状态管理
-// ──────────────────────────────────────────────
-
-const agents = new Map();
-const clients = new Set();
-global.clients = clients;  // 暴露给 chat-routes 使用
-const pendingRequests = new Map();  // 等待 Agent 响应的请求
-const recentChatStreams = new Map(); // messageId -> timestamp，判断是否已有真实流式
-
-// ──────────────────────────────────────────────
 // 版本管理和更新
 // ──────────────────────────────────────────────
 
@@ -527,7 +526,7 @@ async function doUpdate() {
 }
 
 const server = http.createServer((req, res) => {
-  const allowedOrigins = ['https://camp.aigc.sx.cn', 'http://localhost:8889'];
+  const allowedOrigins = ['https://clawcamp.chat', 'http://localhost:8889'];
   const origin = req.headers.origin || '';
   const allowOrigin = allowedOrigins.includes(origin) ? origin : '';
 
@@ -1451,6 +1450,7 @@ wss.on('connection', (ws, req) => {
           ws.campKey = msg.campKey || null;
           ws.conversationId = null;
           clients.add(ws);
+          console.log(`[Hub] 客户端订阅，当前连接数: ${clients.size}`);
           ws.send(JSON.stringify({ type: 'agents', payload: getAgentList() }));
           // 广播在线 Agent 状态给 App
           agents.forEach((agent, id) => {
@@ -1663,9 +1663,9 @@ function handleMessage(ws, msg, setAgentId, connToken, connAgentId) {
           const replyMsgId = providedMessageId || generateId('msg');
           const agentId = senderBotId || 'bot';
 
-          // 🔥 临时禁用 Agent 流式，强制用 Hub 模拟流式（修复 Agent chunk 为空问题）
-          const hadRealStream = false; // 强制使用模拟流式
-          const usedSimulatedStream = !hadRealStream && global.broadcastChatStream;
+          // 🔥 检查是否已有真实流式消息（从 recentChatStreams 判断）
+          const hadRealStream = recentChatStreams.has(replyMsgId);
+          const usedSimulatedStream = !hadRealStream && typeof global.broadcastChatStream === 'function';
           console.log(`[Hub] 模拟流式检查: replyMsgId=${replyMsgId}, hadRealStream=${hadRealStream}, usedSimulatedStream=${usedSimulatedStream}, reply长度=${reply?.length || 0}`);
           if (usedSimulatedStream) {
             console.log(`[Hub] 开始模拟流式: steps, 每步延迟40ms`);

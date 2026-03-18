@@ -3671,17 +3671,31 @@
     }
 
     // 处理流式消息（更新或新增）
+    // 流式消息累积存储
+    const streamTextCache = {};
+
     function handleStreamingMessage(msg) {
       const container = document.getElementById('messagesContainer');
       const streamId = `stream-${msg.message_id || msg.msgId}`;
       let streamDiv = container.querySelector(`[data-stream-id="${streamId}"]`);
       const isComplete = msg.streamingState === 'complete';
-      const text = msg.streamingText || msg.content || '';
+      const chunk = msg.streamingText || msg.content || '';
+
+      // 累积文本（而不是替换）
+      if (!streamTextCache[streamId]) {
+        streamTextCache[streamId] = '';
+      }
+      streamTextCache[streamId] += chunk;
+      
+      // 如果是完整消息，使用完整文本
+      const text = isComplete ? (msg.streamingText || msg.content || streamTextCache[streamId]) : streamTextCache[streamId];
 
       if (streamDiv) {
         streamDiv.innerHTML = `${escapeHtml(text)}<div class="time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>`;
         if (isComplete) {
           streamDiv.classList.remove('streaming');
+          // 清理缓存
+          delete streamTextCache[streamId];
         }
       } else {
         streamDiv = document.createElement('div');
@@ -3689,6 +3703,9 @@
         streamDiv.setAttribute('data-stream-id', streamId);
         streamDiv.innerHTML = `${escapeHtml(text)}<div class="time">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>`;
         container.appendChild(streamDiv);
+        if (isComplete) {
+          delete streamTextCache[streamId];
+        }
       }
 
       requestAnimationFrame(() => {

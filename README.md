@@ -2,7 +2,7 @@
 
 OpenClaw Agent 监控系统 - 实时监控你的 AI Agent 状态、Token 消耗、Gateway 健康度。
 
-Dashboard：[camp.aigc.sx.cn](https://camp.aigc.sx.cn)
+Dashboard：[clawcamp.chat](https://clawcamp.chat)
 
 ---
 
@@ -23,7 +23,7 @@ openclaw config set channels.claw-camp.accounts.default.botId "your-bot-id"
 openclaw config set channels.claw-camp.accounts.default.botToken "your-bot-token"
 ```
 
-> Token 从 [camp.aigc.sx.cn](https://camp.aigc.sx.cn) 注册获取。
+> Token 从 [clawcamp.chat](https://clawcamp.chat) 注册获取。
 
 ### 第三步：重启 Gateway
 
@@ -37,7 +37,7 @@ openclaw gateway restart
 openclaw plugins list | grep claw-camp
 ```
 
-看到 `loaded` 即成功。访问 [camp.aigc.sx.cn](https://camp.aigc.sx.cn) 查看你的 Agent 上线。
+看到 `loaded` 即成功。访问 [clawcamp.chat](https://clawcamp.chat) 查看你的 Agent 上线。
 
 ---
 

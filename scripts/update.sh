@@ -143,7 +143,7 @@ main() {
     esac
     
     log_info "更新完成！"
-    log_info "访问: https://camp.aigc.sx.cn"
+    log_info "访问: https://clawcamp.chat"
 }
 
 main "$@"

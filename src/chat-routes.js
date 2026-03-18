@@ -1622,9 +1622,14 @@ global.broadcastChatStream = function(conversationId, streamPayload) {
   const clientCount = global.clients.size;
   let sentCount = 0;
   
+  console.log(`[broadcastChatStream] 开始广播, conv=${conversationId}, clients=${clientCount}`);
+  
   global.clients.forEach(client => {
     // WebSocket.OPEN === 1
-    if (client.readyState !== 1) return;
+    if (client.readyState !== 1) {
+      console.log(`[broadcastChatStream] 客户端状态不是 OPEN: ${client.readyState}`);
+      return;
+    }
     client.send(JSON.stringify({
       type: 'msg_stream',
       payload: streamPayload
@@ -1632,5 +1637,5 @@ global.broadcastChatStream = function(conversationId, streamPayload) {
     sentCount++;
   });
   
-  console.log(`[broadcastChatStream] conv=${conversationId}, clients=${clientCount}, sent=${sentCount}`);
+  console.log(`[broadcastChatStream] 广播完成, sent=${sentCount}/${clientCount}`);
 };
